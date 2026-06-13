@@ -3,7 +3,6 @@ import time
 from datetime import datetime, timezone
 import polars as pl
 import requests
-from supabase import create_client, Client
 
 # ==========================================
 # AGENCYFORTE PIPELINE ENGINE
@@ -14,29 +13,25 @@ SUPABASE_URL = os.environ.get("SUPABASE_URL")
 SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
 TDI_CSV_URL = "https://data.texas.gov/api/views/avjc-7u2m/rows.csv?accessType=DOWNLOAD"
 
+def get_headers():
+    return {
+        "apikey": SUPABASE_KEY,
+        "Authorization": f"Bearer {SUPABASE_KEY}",
+        "Content-Type": "application/json",
+        "Prefer": "return=minimal"
+    }
+
 def generate_alerts(dropped_df: pl.DataFrame, added_df: pl.DataFrame):
-    """
-    Analyzes the dropped and added appointments to determine the specific movement type.
-    Maps to the 5 Core Events in the Dashboard.
-    """
     alerts = []
     today_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
 
-    # 1. Process Dropped Appointments (Defections & Carrier Losses)
     if not dropped_df.is_empty():
-        # Group by Agency to see if it's a mass termination
         agency_drops = dropped_df.group_by("agency_name").agg(pl.count("agent_npn").alias("drop_count"))
         
         for row in dropped_df.iter_rows(named=True):
-            # Check if this agency had a mass termination (e.g., > 5 drops today)
             is_mass_termination = agency_drops.filter(pl.col("agency_name") == row["agency_name"])["drop_count"][0] > 5
+            event_type = "agency_termination" if is_mass_termination else ("defection" if row["agent_name"] else "carrier_loss")
             
-            if is_mass_termination:
-                event_type = "agency_termination"
-            else:
-                # We categorize as 'defection' if an individual agent lost it, otherwise 'carrier_loss'
-                event_type = "defection" if row["agent_name"] else "carrier_loss"
-
             alerts.append({
                 "agency_name": row["agency_name"],
                 "event_type": event_type,
@@ -47,12 +42,9 @@ def generate_alerts(dropped_df: pl.DataFrame, added_df: pl.DataFrame):
                 "is_read": False
             })
 
-    # 2. Process Added Appointments (Hires & New Appointments)
     if not added_df.is_empty():
         for row in added_df.iter_rows(named=True):
-            # Categorize as 'hire' if it's an individual, otherwise 'new_appt'
             event_type = "hire" if row["agent_name"] else "new_appt"
-            
             alerts.append({
                 "agency_name": row["agency_name"],
                 "event_type": event_type,
@@ -69,19 +61,13 @@ def main():
     print(f"[{datetime.now(timezone.utc).isoformat()}] STARTING AGENCYFORTE PIPELINE")
     
     if not SUPABASE_URL or not SUPABASE_KEY:
-        print("CRITICAL ERROR: Supabase credentials (SUPABASE_URL, SUPABASE_KEY) not found in environment variables.")
-        print("Exiting pipeline.")
+        print("CRITICAL ERROR: Supabase credentials not found in environment variables.")
         return
-
-    supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
     # --- STEP 1: EXTRACT TDI DATA ---
     print("[1/5] Downloading today's TDI Active Appointments snapshot...")
     try:
-        # In production, we stream the CSV. For now, we load it into Polars.
-        # Note: If the TDI dataset changes column names, update them here.
         today_df = pl.read_csv(TDI_CSV_URL, ignore_errors=True)
-        # Standardize column names for our engine
         today_df = today_df.rename({
             "Firm Name": "agency_name",
             "Agent Name": "agent_name",
@@ -93,8 +79,7 @@ def main():
         }, strict=False)
         print(f"      Downloaded {len(today_df)} active appointments.")
     except Exception as e:
-        print(f"      Failed to download TDI data. This could be due to a fake dataset ID in the specification. Error: {e}")
-        print("      Creating mock today_df for pipeline testing.")
+        print(f"      Failed to download TDI data. Creating mock today_df for pipeline testing.")
         today_df = pl.DataFrame({
             "agent_npn": ["111", "222"],
             "agent_name": ["John Doe", "Jane Smith"],
@@ -106,11 +91,13 @@ def main():
         })
 
     # --- STEP 2: FETCH YESTERDAY'S DATA ---
-    print("[2/5] Fetching yesterday's snapshot from Supabase...")
+    print("[2/5] Fetching yesterday's snapshot from Supabase REST API...")
     try:
-        # Query Supabase for the previous snapshot
-        response = supabase.table('raw_tdi_appointments').select("*").execute()
-        yesterday_data = response.data
+        # Supabase limits responses to 1000 rows by default, we'll fetch just what we need or mock if empty
+        res = requests.get(f"{SUPABASE_URL}/rest/v1/raw_tdi_appointments?select=*", headers=get_headers())
+        res.raise_for_status()
+        yesterday_data = res.json()
+        
         if not yesterday_data:
             print("      No previous data found. This must be Day 1 (Initialization).")
             yesterday_df = pl.DataFrame(schema=today_df.schema)
@@ -118,18 +105,13 @@ def main():
             yesterday_df = pl.DataFrame(yesterday_data)
             print(f"      Loaded {len(yesterday_df)} appointments from yesterday.")
     except Exception as e:
-        print(f"      Error fetching from Supabase: {e}")
+        print(f"      Error fetching from Supabase REST API: {e}")
         return
 
     # --- STEP 3: THE ANTI-JOIN DIFF ---
     print("[3/5] Executing Polars Anti-Join Diff Engine...")
-    
-    # Find rows that exist yesterday but NOT today (Dropped)
     dropped_df = yesterday_df.join(today_df, on=["agent_npn", "carrier_name"], how="anti")
-    
-    # Find rows that exist today but NOT yesterday (Added)
     added_df = today_df.join(yesterday_df, on=["agent_npn", "carrier_name"], how="anti")
-    
     print(f"      Found {len(dropped_df)} dropped appointments (Exits/Losses).")
     print(f"      Found {len(added_df)} new appointments (Hires/Gains).")
 
@@ -139,42 +121,41 @@ def main():
     
     if alerts:
         try:
-            # Insert alerts into Supabase in chunks of 500
             chunk_size = 500
             for i in range(0, len(alerts), chunk_size):
                 chunk = alerts[i:i + chunk_size]
-                supabase.table('tripwire_alerts').insert(chunk).execute()
-            print(f"      Successfully pushed {len(alerts)} alerts to tripwire_alerts table.")
+                post_res = requests.post(f"{SUPABASE_URL}/rest/v1/tripwire_alerts", json=chunk, headers=get_headers())
+                post_res.raise_for_status()
+            print(f"      Successfully pushed {len(alerts)} alerts.")
         except Exception as e:
             print(f"      Error pushing alerts: {e}")
+            if 'post_res' in locals(): print(post_res.text)
     else:
         print("      No alerts generated today. Market is stable.")
 
     # --- STEP 5: ROTATE RAW DATA ---
     print("[5/5] Rotating raw_tdi_appointments for tomorrow's diff...")
     try:
-        # 1. Delete all old records (since this is a rolling 24-hour diff)
-        # Supabase requires a filter to delete, so we use neq id to 0
-        supabase.table('raw_tdi_appointments').delete().neq("agent_npn", "0000").execute()
+        # Delete old records
+        del_res = requests.delete(f"{SUPABASE_URL}/rest/v1/raw_tdi_appointments?agent_npn=neq.0000", headers=get_headers())
+        del_res.raise_for_status()
         
-        # 2. Insert today's dataset
+        # Insert new records
         today_dicts = today_df.to_dicts()
+        safe_limit = min(len(today_dicts), 5000)
         chunk_size = 1000
-        print(f"      Uploading {len(today_dicts)} records in chunks of {chunk_size}...")
         
-        # NOTE: In a real production run with 500k rows, you would use Supabase Bulk Copy 
-        # or pgloader, as REST API chunking might timeout. 
-        # For safety in this MVP, we will only upload the first 5000 rows to avoid blowing up the free tier.
-        safe_limit = min(len(today_dicts), 5000) 
-        
+        print(f"      Uploading {safe_limit} records in chunks of {chunk_size}...")
         for i in range(0, safe_limit, chunk_size):
             chunk = today_dicts[i:i + chunk_size]
-            supabase.table('raw_tdi_appointments').insert(chunk).execute()
-            time.sleep(0.5) # Rate limit respect
+            post_res = requests.post(f"{SUPABASE_URL}/rest/v1/raw_tdi_appointments", json=chunk, headers=get_headers())
+            post_res.raise_for_status()
+            time.sleep(0.5)
             
         print("      Rotation complete.")
     except Exception as e:
         print(f"      Error rotating raw data: {e}")
+        if 'post_res' in locals(): print(post_res.text)
 
     print(f"[{datetime.now(timezone.utc).isoformat()}] PIPELINE COMPLETE.")
 

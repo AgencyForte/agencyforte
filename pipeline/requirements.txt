@@ -1,3 +1,2 @@
 polars==0.20.18
-supabase>=2.5.0
 requests==2.31.0
