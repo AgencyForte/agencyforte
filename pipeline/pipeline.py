@@ -95,7 +95,17 @@ def main():
     # --- STEP 1: EXTRACT TDI DATA ---
     print("[1/5] Downloading today's TDI Active Appointments snapshot...")
     try:
-        today_df = pl.read_csv(TDI_CSV_URL, ignore_errors=True)
+        local_csv_path = "../Active_insurance_company_appointments_for_agencies_and_businesses.csv"
+        if os.path.exists(local_csv_path):
+            print("      Found local dataset CSV in repository! Loading directly from disk...")
+            today_df = pl.read_csv(local_csv_path, ignore_errors=True)
+        elif os.path.exists("Active_insurance_company_appointments_for_agencies_and_businesses.csv"):
+            print("      Found local dataset CSV in current directory! Loading directly from disk...")
+            today_df = pl.read_csv("Active_insurance_company_appointments_for_agencies_and_businesses.csv", ignore_errors=True)
+        else:
+            print("      Downloading from TDI Data Portal...")
+            today_df = pl.read_csv(TDI_CSV_URL, ignore_errors=True)
+            
         today_df = today_df.rename({
             "Agency name": "agency_name",
             "Agency NPN": "agent_npn",
@@ -108,12 +118,12 @@ def main():
         # We need an agent_name column even though it doesn't exist in this dataset, for the UI
         today_df = today_df.with_columns(pl.lit("").alias("agent_name"))
         
-        print(f"      Downloaded {len(today_df)} active appointments.")
+        print(f"      Loaded {len(today_df)} active appointments.")
     except Exception as e:
-        print(f"      Failed to download TDI data. Creating mock today_df for pipeline testing.")
+        print(f"      Failed to download/load TDI data: {e}. Creating mock today_df for pipeline testing.")
         today_df = pl.DataFrame({
             "agent_npn": ["111", "222"],
-            "agent_name": ["John Doe", "Jane Smith"],
+            "agent_name": ["", ""],
             "agency_name": ["Smith & Co Insurance", "Apex Commercial Group"],
             "carrier_name": ["CHUBB", "TRAVELERS"],
             "appointment_date": ["2020-01-01", "2021-05-15"],
@@ -137,6 +147,10 @@ def main():
         except Exception as e:
             print(f"      Failed to load yesterday's data: {e}. Falling back to empty.")
             yesterday_df = pl.DataFrame(schema=today_df.schema)
+
+    # Force join keys to string to avoid ComputeError when comparing mocked ints to real strings
+    today_df = today_df.with_columns(pl.col("agent_npn").cast(pl.Utf8), pl.col("carrier_name").cast(pl.Utf8))
+    yesterday_df = yesterday_df.with_columns(pl.col("agent_npn").cast(pl.Utf8), pl.col("carrier_name").cast(pl.Utf8))
 
     # --- STEP 3: THE ANTI-JOIN DIFF ---
     print("[3/5] Executing Polars Anti-Join Diff Engine...")
