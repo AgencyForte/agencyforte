@@ -21,6 +21,30 @@ def get_headers():
         "Prefer": "return=minimal"
     }
 
+def determine_region(zip_code):
+    if not zip_code or not isinstance(zip_code, str):
+        return "Unknown"
+    
+    prefix = zip_code[:3]
+    if prefix in ["750", "751", "752", "753", "754", "760", "761", "762", "764", "765", "766"]:
+        return "Dallas-Fort Worth"
+    elif prefix in ["770", "772", "773", "774", "775", "778"]:
+        return "Greater Houston"
+    elif prefix in ["786", "787", "789", "765"]:
+        return "Austin / Central Texas"
+    elif prefix in ["780", "781", "782"]:
+        return "San Antonio"
+    elif prefix in ["783", "784", "785"]:
+        return "South Texas"
+    elif prefix in ["797", "798", "799", "768", "769"]:
+        return "West Texas"
+    elif prefix in ["790", "791", "792", "793", "794", "795", "796"]:
+        return "Panhandle"
+    elif prefix in ["755", "756", "757", "758", "759"]:
+        return "East Texas"
+    else:
+        return "Other Texas"
+
 def generate_alerts(dropped_df: pl.DataFrame, added_df: pl.DataFrame):
     alerts = []
     today_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
@@ -39,7 +63,9 @@ def generate_alerts(dropped_df: pl.DataFrame, added_df: pl.DataFrame):
                 "agent_name": row["agent_name"],
                 "agent_npn": row["agent_npn"],
                 "carrier_name": row["carrier_name"],
-                "is_read": False
+                "is_read": False,
+                "zip_code": row.get("zip_code", ""),
+                "region": determine_region(row.get("zip_code", ""))
             })
 
     if not added_df.is_empty():
@@ -52,7 +78,9 @@ def generate_alerts(dropped_df: pl.DataFrame, added_df: pl.DataFrame):
                 "agent_name": row["agent_name"],
                 "agent_npn": row["agent_npn"],
                 "carrier_name": row["carrier_name"],
-                "is_read": False
+                "is_read": False,
+                "zip_code": row.get("zip_code", ""),
+                "region": determine_region(row.get("zip_code", ""))
             })
 
     return alerts
@@ -90,23 +118,22 @@ def main():
             "zip_code": ["77002", "77002"]
         })
 
-    # --- STEP 2: FETCH YESTERDAY'S DATA ---
-    print("[2/5] Fetching yesterday's snapshot from Supabase REST API...")
-    try:
-        # Supabase limits responses to 1000 rows by default, we'll fetch just what we need or mock if empty
-        res = requests.get(f"{SUPABASE_URL}/rest/v1/raw_tdi_appointments?select=*", headers=get_headers())
-        res.raise_for_status()
-        yesterday_data = res.json()
-        
-        if not yesterday_data:
-            print("      No previous data found. This must be Day 1 (Initialization).")
-            yesterday_df = pl.DataFrame(schema=today_df.schema)
-        else:
-            yesterday_df = pl.DataFrame(yesterday_data)
+    # --- STEP 2: LOAD YESTERDAY'S CSV ---
+    print("[2/5] Loading yesterday's snapshot from local cache...")
+    if not os.path.exists("yesterday_tdi.csv"):
+        print("      No previous data found (Day 1). Creating empty dataframe.")
+        yesterday_df = pl.DataFrame(schema=today_df.schema)
+    else:
+        try:
+            yesterday_df = pl.read_csv("yesterday_tdi.csv", ignore_errors=True)
+            # Ensure schema matches
+            for col in today_df.columns:
+                if col not in yesterday_df.columns:
+                    yesterday_df = yesterday_df.with_columns(pl.lit("").alias(col))
             print(f"      Loaded {len(yesterday_df)} appointments from yesterday.")
-    except Exception as e:
-        print(f"      Error fetching from Supabase REST API: {e}")
-        return
+        except Exception as e:
+            print(f"      Failed to load yesterday's data: {e}. Falling back to empty.")
+            yesterday_df = pl.DataFrame(schema=today_df.schema)
 
     # --- STEP 3: THE ANTI-JOIN DIFF ---
     print("[3/5] Executing Polars Anti-Join Diff Engine...")
@@ -133,29 +160,42 @@ def main():
     else:
         print("      No alerts generated today. Market is stable.")
 
-    # --- STEP 5: ROTATE RAW DATA ---
-    print("[5/5] Rotating raw_tdi_appointments for tomorrow's diff...")
+    # --- STEP 5: COMPUTE AND PUSH AGENCY DIRECTORY ---
+    print("[5/5] Aggregating Market Directory and saving state...")
     try:
-        # Delete old records
-        del_res = requests.delete(f"{SUPABASE_URL}/rest/v1/raw_tdi_appointments?agent_npn=neq.0000", headers=get_headers())
+        # Create regions for all rows using the fast map functionality
+        today_df = today_df.with_columns(
+            pl.col("zip_code").map_elements(determine_region, return_dtype=pl.Utf8).alias("region")
+        )
+        
+        # Aggregate directory
+        dir_df = today_df.group_by(["agency_name", "region"]).agg(pl.n_unique("agent_npn").alias("total_producers"))
+        
+        # Drop agencies with NULL/blank names
+        dir_df = dir_df.filter(pl.col("agency_name").is_not_null() & (pl.col("agency_name") != ""))
+        
+        # Delete old directory in Supabase
+        del_res = requests.delete(f"{SUPABASE_URL}/rest/v1/agency_directory?agency_name=neq.0000", headers=get_headers())
         del_res.raise_for_status()
-        
-        # Insert new records
-        today_dicts = today_df.to_dicts()
-        safe_limit = min(len(today_dicts), 5000)
+
+        # Push new directory in chunks
+        dir_dicts = dir_df.to_dicts()
         chunk_size = 1000
-        
-        print(f"      Uploading {safe_limit} records in chunks of {chunk_size}...")
-        for i in range(0, safe_limit, chunk_size):
-            chunk = today_dicts[i:i + chunk_size]
-            post_res = requests.post(f"{SUPABASE_URL}/rest/v1/raw_tdi_appointments", json=chunk, headers=get_headers())
+        for i in range(0, len(dir_dicts), chunk_size):
+            chunk = dir_dicts[i:i + chunk_size]
+            post_res = requests.post(f"{SUPABASE_URL}/rest/v1/agency_directory", json=chunk, headers=get_headers())
             post_res.raise_for_status()
             time.sleep(0.5)
             
-        print("      Rotation complete.")
+        print(f"      Successfully pushed {len(dir_dicts)} unique agencies to directory.")
+
+        # Save today's CSV for tomorrow
+        today_df.write_csv("yesterday_tdi.csv")
+        print("      Saved yesterday_tdi.csv for tomorrow's diff.")
+
     except Exception as e:
-        print(f"      Error rotating raw data: {e}")
-        if 'post_res' in locals(): print(post_res.text)
+        print(f"      Error in step 5: {e}")
+        if 'post_res' in locals() and hasattr(post_res, 'text'): print(post_res.text)
 
     print(f"[{datetime.now(timezone.utc).isoformat()}] PIPELINE COMPLETE.")
 

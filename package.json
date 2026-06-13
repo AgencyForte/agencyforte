@@ -1,8 +1,22 @@
 {
-  "name": "agencyforte-prototype",
+  "name": "agencyforte-app",
+  "private": true,
   "version": "1.0.0",
-  "description": "AgencyForte HTML Prototype",
+  "type": "module",
   "scripts": {
-    "dev": "npx -y http-server -p 3000"
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.43.0",
+    "dotenv": "^17.4.2",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^6.23.1"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.2.1",
+    "vite": "^5.2.11"
   }
 }
