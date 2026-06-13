@@ -20,11 +20,19 @@ export default function Dashboard() {
 
   useEffect(() => {
     const fetchData = async () => {
+      setLoading(true)
+      
       // Fetch Alerts
-      const { data: alertData, error: alertError } = await supabase
+      let alertQuery = supabase
         .from('tripwire_alerts')
         .select('*')
         .order('created_at', { ascending: false })
+        
+      if (selectedRegion !== 'All Texas') {
+        alertQuery = alertQuery.eq('region', selectedRegion)
+      }
+
+      const { data: alertData, error: alertError } = await alertQuery
 
       if (alertError) {
         console.error("Error fetching alerts:", alertError)
@@ -33,10 +41,16 @@ export default function Dashboard() {
       }
 
       // Fetch Directory
-      const { data: dirData, error: dirError } = await supabase
+      let dirQuery = supabase
         .from('agency_directory')
         .select('*')
-        .limit(500)
+        .limit(1000)
+        
+      if (selectedRegion !== 'All Texas') {
+        dirQuery = dirQuery.eq('region', selectedRegion)
+      }
+
+      const { data: dirData, error: dirError } = await dirQuery
 
       if (dirError || !dirData) {
         setDirectories([])
@@ -48,7 +62,7 @@ export default function Dashboard() {
     }
 
     fetchData()
-  }, [])
+  }, [selectedRegion])
 
   const filteredAlerts = alerts.filter(alert => {
     if (selectedRegion !== 'All Texas' && alert.region !== selectedRegion) return false;
