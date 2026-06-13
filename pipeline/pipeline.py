@@ -103,8 +103,13 @@ def main():
             print("      Found local dataset CSV in current directory! Loading directly from disk...")
             today_df = pl.read_csv("Active_insurance_company_appointments_for_agencies_and_businesses.csv", ignore_errors=True)
         else:
-            print("      Downloading from TDI Data Portal...")
-            today_df = pl.read_csv(TDI_CSV_URL, ignore_errors=True)
+            print("      Downloading from TDI Data Portal (bypassing bot block)...")
+            import urllib.request
+            req = urllib.request.Request(TDI_CSV_URL, headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'})
+            with urllib.request.urlopen(req) as response:
+                with open("temp_tdi.csv", "wb") as out_file:
+                    out_file.write(response.read())
+            today_df = pl.read_csv("temp_tdi.csv", ignore_errors=True)
             
         today_df = today_df.rename({
             "Agency name": "agency_name",
