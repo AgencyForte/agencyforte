@@ -1,0 +1,8 @@
+{
+  "name": "agencyforte-prototype",
+  "version": "1.0.0",
+  "description": "AgencyForte HTML Prototype",
+  "scripts": {
+    "dev": "npx -y http-server -p 3000"
+  }
+}

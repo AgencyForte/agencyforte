@@ -1,0 +1,75 @@
+# AgencyForte: V2 Product Master Specification
+
+**Product Identity:** The Vulnerability Tripwire Engine
+**Target Buyer:** Mid-Market Commercial Insurance Principals & Producers (Houston MSA)
+**Core Value Proposition:** An automated, legally bulletproof raid infrastructure that detects competitor operational failures, product deficits, and structural fragility within 24 hours.
+
+---
+
+## 1. The Strategic Paradigm Shift
+
+AgencyForte is no longer a passive "market directory" or a chronological news feed. It is a **proactive security and target acquisition system**. The software allows commercial brokers to plant automated data landmines under their top local rivals. Buyers are notified the exact moment a competitor suffers an internal personnel breach or structural market deficit, creating an immediate window to poach high-value commercial accounts.
+
+## 2. The Technical Moat (The 24-Hour Diff)
+
+* **The Data Foundation:** Texas Department of Insurance (TDI) Open Data Portal (`avjc-7u2m.csv` - Active Corporate Appointments).
+* **The Engine:** A highly scalable, automated Polars script running a daily "Anti-Join" diff against the previous day's snapshot.
+* **The Speed Advantage:** By strictly tracking **binary row deletions** (the moment a carrier electronically revokes binding authority), the engine bypasses the state’s 30-day reporting lag. Competitor exit craters and carrier evictions are detected within 24 to 48 hours of internal execution.
+* **Legal Compliance:** The platform relies exclusively on state-mandated corporate regulatory records, bypassing FCRA/GLBA privacy restrictions regarding individual tracking.
+
+---
+
+## 3. The Three Cores (The Intelligence Arsenal)
+
+### Core 1: Kinetic Chaos (Producer Movements)
+
+**Objective:** Track sudden operational trauma and execute surgical headhunting/client interception.
+
+* **Tripwire A: The Roster Breach (Firm Level):** Fires when the daily diff detects 1+ carrier appointments dropping from a targeted rival agency. Triggers a **90-Day Distraction Window**, signaling that the rival's management is compromised by personnel trauma and ripe for a Broker of Record (BOR) attack.
+* **Tripwire B: The HVT Lock (Individual Level):** Allows the buyer to track specific "High-Value Target" rainmakers. Fires the exact moment the specific `agent_npn` severs ties with their current agency, enabling immediate recruitment outreach before industry gossip spreads.
+
+### Core 2: The Capacity Matrix (Product Deficits)
+
+**Objective:** Map permanent, structural carrier weaknesses to execute product-delivery raids.
+
+* **The Mechanism:** A continuous cross-reference between the buyer's flagship commercial carriers and their rivals' missing or recently terminated carriers.
+* **The Value:** Proves definitively that a rival cannot deliver premium market rates or direct placements. Exposes "Ghost Logos" (appointments a rival quietly lost but still claims) and highlights immediate vulnerabilities when a rival is evicted from a premium market.
+
+### Core 3: The Fragility Index (Target Acquisition)
+
+**Objective:** A macro-level map of the Houston MSA that mathematically identifies structurally weak agencies that the buyer is not actively monitoring.
+
+* **The Bus Factor:** Flags top-heavy agencies where a single producer holds >80% of the active premium carrier appointments.
+* **The Succession Void:** Flags aging agencies with zero junior talent (no licenses issued in the last 5 years) to defend their aging books.
+* **The Amateur Hour:** Cross-references premium NAIC codes against license tenure. Flags agencies that have handed complex, elite commercial appointments (e.g., Chubb, Cincinnati) to rookies with less than 3 years of experience.
+
+---
+
+## 4. User Interface & Platform Architecture
+
+### The Mandatory Scarcity Hook (Onboarding)
+
+* **The Flow:** Account Creation → **Mandatory Setup Screen**.
+* **The Action:** The user cannot access the dashboard until they enter the names of up to 5 local competitor agencies.
+* **The Psychology:** This guarantees instant "Time-to-Value." The moment the dashboard loads, it is fully populated with the Capacity Matrix gaps and Fragility Scores of those specific rivals, proving the software's worth on second one.
+
+### The Watchlist Command Center (Default View)
+
+The primary logged-in workspace is split into two distinct operational tabs:
+
+* **Tab 1: Target Agencies (Macro):** The view for systemic account poaching. Displays the Roster Breach alerts, Capacity Matrix deficits, and Fragility scores for the specific rival roofs the buyer is hunting.
+* **Tab 2: Target Producers (Micro):** The view for precision headhunting. Displays the active status of the individual rainmakers (HVTs) the buyer has locked on to.
+
+### The Market Explorer (Secondary Tool)
+
+* **The Function:** A searchable, fully queryable database of the entire region. Users can filter all Houston producers by tenure, zip code, or active lines.
+* **The Action:** Every row features an `[+ Add to Watchlist]` button, allowing the user to restock their targets and expand their hunting ground over time.
+
+---
+
+## 5. Retention & Notification Strategy
+
+To combat "Silent Churn" in a slow-moving industry, the platform utilizes an active-monitoring psychology.
+
+* **The Radar UI:** The dashboard always displays an active scanning status (e.g., *"System Active: Scanners analyzed 14,203 records in the last 24 hours. Tripwires armed."*) to reinforce continuous value.
+* **The Monday Target Brief (Push Strategy):** An automated weekly email summarizing the active status of the buyer's Watchlist. If Core 1 (Exits) is quiet, the brief highlights Core 2 (Capacity Gaps) or Core 3 (New Fragile Targets) to guarantee the buyer has a fresh offensive playbook every single week without requiring a login.

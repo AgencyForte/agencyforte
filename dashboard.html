@@ -1,0 +1,701 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AgencyForte | Intelligence Terminal</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;700;900&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        .unified-container {
+            padding: 2rem 3rem 3rem 3rem;
+            max-width: 1600px;
+            margin: 0 auto;
+            position: relative;
+            z-index: 10;
+        }
+
+        .section-header {
+            font-family: var(--font-header);
+            font-size: 1.2rem;
+            margin-bottom: 1.5rem;
+            color: var(--text-main);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            border-bottom: 1px solid var(--border-subtle);
+            padding-bottom: 0.5rem;
+        }
+
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+        }
+
+        .modal-overlay.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .modal-content {
+            transform: translateY(20px) scale(0.95);
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .modal-overlay.active .modal-content {
+            transform: translateY(0) scale(1);
+        }
+
+        /* Toggle Switch */
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 44px;
+            height: 24px;
+            margin: 0;
+        }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-color: rgba(255,255,255,0.1);
+            transition: .3s;
+            border: 1px solid var(--border-subtle);
+        }
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 18px;
+            width: 18px;
+            left: 2px;
+            bottom: 2px;
+            background-color: var(--text-muted);
+            transition: .3s;
+        }
+        input:checked + .slider {
+            background-color: rgba(0, 255, 102, 0.2);
+            border-color: var(--accent-green);
+        }
+        input:checked + .slider:before {
+            transform: translateX(20px);
+            background-color: var(--accent-green);
+            box-shadow: 0 0 10px var(--accent-green);
+        }
+        .slider.round { border-radius: 24px; }
+        .slider.round:before { border-radius: 50%; }
+
+        /* Range Slider */
+        .range-slider {
+            -webkit-appearance: none;
+            width: 100%;
+            height: 6px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 3px;
+            outline: none;
+        }
+        .range-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: var(--accent-green);
+            cursor: pointer;
+            box-shadow: 0 0 10px var(--accent-green);
+        }
+
+        .matrix-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-family: var(--font-mono);
+            font-size: 0.85rem;
+        }
+        
+        .matrix-table th {
+            text-align: left;
+            padding: 1rem;
+            color: var(--text-muted);
+            border-bottom: 1px solid var(--border-subtle);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            background: rgba(0,0,0,0.2);
+        }
+
+        .matrix-table td {
+            padding: 1rem;
+            border-bottom: 1px solid rgba(255,255,255,0.02);
+            vertical-align: middle;
+        }
+
+        .matrix-table tbody tr {
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .matrix-table tbody tr:hover { background: rgba(255, 255, 255, 0.05); }
+        
+        .pulse-red { animation: pulseRed 2s infinite; }
+        @keyframes pulseRed {
+            0% { box-shadow: inset 0 0 0 0 rgba(255, 42, 85, 0.2); }
+            70% { box-shadow: inset 0 0 0 10px rgba(255, 42, 85, 0); }
+            100% { box-shadow: inset 0 0 0 0 rgba(255, 42, 85, 0); }
+        }
+
+        .pulse-green { animation: pulseGreen 2s infinite; }
+        @keyframes pulseGreen {
+            0% { box-shadow: inset 0 0 0 0 rgba(0, 255, 102, 0.15); }
+            70% { box-shadow: inset 0 0 0 10px rgba(0, 255, 102, 0); }
+            100% { box-shadow: inset 0 0 0 0 rgba(0, 255, 102, 0); }
+        }
+    </style>
+</head>
+<body>
+    <div class="noise-overlay"></div>
+    <div class="ambient-glow glow-1"></div>
+    <div class="ambient-glow glow-2"></div>
+
+    <header class="glass-header" style="z-index: 300;">
+        <div class="logo">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="var(--accent-red)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                <path d="M2 17L12 22L22 17" stroke="var(--accent-red)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                <path d="M2 12L12 17L22 12" stroke="var(--accent-red)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            AGENCY<span>FORTE</span>
+        </div>
+        <div style="font-family: var(--font-mono); font-size: 0.85rem; display: flex; align-items: center; gap: 15px;">
+            <span style="color: var(--accent-green);"><div class="indicator pulse" style="display:inline-block; margin-right:8px;"></div>T-30 SYSTEM ARMED</span>
+            <span style="color: var(--text-muted);">|</span>
+            <span style="color: var(--text-muted);">HOUSTON MSA</span>
+        </div>
+    </header>
+
+    <div class="dashboard-layout">
+        <!-- FIXED TACTICAL SIDEBAR -->
+        <aside class="sidebar" id="sidebar">
+            <div class="nav-group">
+                <div class="nav-header">// ACTIVE OPERATIONS</div>
+                <nav class="sidebar-nav">
+                    <a href="#" class="nav-item active" id="navWatchlist" onclick="switchTab('watchlist')">
+                        <span class="nav-icon">
+                            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><circle cx="12" cy="12" r="3"></circle><line x1="12" y1="2" x2="12" y2="22"></line><line x1="2" y1="12" x2="22" y2="12"></line></svg>
+                        </span>
+                        <span class="nav-text">My Watchlist</span>
+                    </a>
+                    <a href="#" class="nav-item" id="navMovements" onclick="switchTab('movements')">
+                        <span class="nav-icon">
+                            <svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>
+                        </span>
+                        <span class="nav-text">Market Movements</span>
+                    </a>
+                </nav>
+            </div>
+            
+            <div class="nav-group" style="margin-top: auto;">
+                <div class="nav-header">// SYSTEM</div>
+                <nav class="sidebar-nav">
+                    <a href="#" class="nav-item">
+                        <span class="nav-icon">
+                            <svg viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>
+                        </span>
+                        <span class="nav-text">Data Feed</span>
+                    </a>
+                    <a href="#" class="nav-item">
+                        <span class="nav-icon">
+                            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+                        </span>
+                        <span class="nav-text">Settings</span>
+                    </a>
+                </nav>
+            </div>
+        </aside>
+
+        <main class="main-content" style="padding-top: 5rem;">
+            
+            <!-- ========================================== -->
+            <!-- VIEW: MY WATCHLIST                         -->
+            <!-- ========================================== -->
+            <div id="viewWatchlist" class="unified-container">
+                <section style="padding: 0; margin-bottom: 4rem;">
+                    <div class="dropdown-container" style="position: relative; display: inline-block; margin-bottom: 1.5rem; width: 100%; border-bottom: 1px solid var(--border-subtle); padding-bottom: 0.5rem;">
+                        <button class="section-header btn-ghost" style="border: none; padding: 0; display: flex; align-items: center; gap: 10px; background: transparent; cursor: pointer; margin-bottom: 0; justify-content: flex-start; border-bottom: none; padding-bottom: 0;" onclick="toggleTimeDropdown('watchlist')">
+                            <span id="watchlistTimeLabel" style="font-weight: bold;">30 DAYS MARKET WATCH</span>
+                            <span style="font-size: 0.8rem; color: var(--text-muted);">▼</span>
+                        </button>
+                        <div id="watchlistTimeDropdown" style="display: none; position: absolute; top: 100%; left: 0; background: rgba(13, 17, 26, 0.95); border: 1px solid var(--border-highlight); border-radius: 4px; padding: 0.5rem 0; z-index: 100; min-width: 250px; box-shadow: 0 4px 20px rgba(0,0,0,0.5); margin-top: 10px;">
+                            <div class="dropdown-option" style="padding: 0.8rem 1.5rem; cursor: pointer; color: #FFF; font-family: var(--font-header); font-size: 0.9rem; letter-spacing: 1px; transition: background 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.05)'" onmouseout="this.style.background='transparent'" onclick="updateTimeFilter('watchlist', '30 DAYS', this)">30 DAYS MARKET WATCH</div>
+                            <div class="dropdown-option" style="padding: 0.8rem 1.5rem; cursor: pointer; color: var(--text-muted); font-family: var(--font-header); font-size: 0.9rem; letter-spacing: 1px; transition: background 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.05)'" onmouseout="this.style.background='transparent'" onclick="updateTimeFilter('watchlist', '60 DAYS', this)">60 DAYS MARKET WATCH</div>
+                            <div class="dropdown-option" style="padding: 0.8rem 1.5rem; cursor: pointer; color: var(--text-muted); font-family: var(--font-header); font-size: 0.9rem; letter-spacing: 1px; transition: background 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.05)'" onmouseout="this.style.background='transparent'" onclick="updateTimeFilter('watchlist', '12 MONTHS', this)">12 MONTHS MARKET WATCH</div>
+                        </div>
+                    </div>
+                    <div class="competitors-grid">
+                        <div class="competitor-card">
+                            <div class="card-header">
+                                <div>
+                                    <h3>Smith & Co Insurance</h3>
+                                    <div class="tracking-status">Tracking 42 Producers</div>
+                                </div>
+                                <button class="btn-ghost" style="padding: 0.3rem 0.8rem; font-size: 0.7rem;" onclick="openConfigPanel('Smith & Co Insurance')">CONFIGURE ALERTS</button>
+                            </div>
+                            <div class="card-body">
+                                <div>
+                                    <div class="movement-row exit interactive" onclick="toggleTray(this)">
+                                        <span class="label">Rainmaker Defections</span>
+                                        <span class="value">2 <span style="font-size: 0.6rem; margin-left: 8px;">▼</span></span>
+                                    </div>
+                                    <div class="tray-container">
+                                        <div class="tray-content">
+                                            <div class="tray-row" style="display: block;">
+                                                <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px;">
+                                                    <strong style="color: #FFF; font-size: 0.95rem;">John Doe</strong>
+                                                    <span style="color: var(--accent-red); font-size: 0.75rem; font-family: var(--font-mono);">Exited to: Willis Towers Watson</span>
+                                                </div>
+                                                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 0.75rem; color: var(--text-muted);">
+                                                    <div><span style="opacity: 0.5;">Lines:</span> P&C, Commercial</div>
+                                                    <div><span style="opacity: 0.5;">Tenure:</span> 14 Yrs 2 Mos</div>
+                                                    <div><span style="opacity: 0.5;">Active Appts:</span> 14 Carriers</div>
+                                                    <div><span style="opacity: 0.5;">Top Carriers:</span> Chubb, Travelers, AIG, Liberty Mutual, CNA</div>
+                                                </div>
+                                            </div>
+                                            <div class="tray-row" style="display: block;">
+                                                <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px;">
+                                                    <strong style="color: #FFF; font-size: 0.95rem;">Marcus Vance</strong>
+                                                    <span style="color: var(--accent-red); font-size: 0.75rem; font-family: var(--font-mono);">Exited to: Unknown</span>
+                                                </div>
+                                                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 0.75rem; color: var(--text-muted);">
+                                                    <div><span style="opacity: 0.5;">Lines:</span> Commercial</div>
+                                                    <div><span style="opacity: 0.5;">Tenure:</span> 12.0 Yrs</div>
+                                                    <div><span style="opacity: 0.5;">Active Appts:</span> 22 Carriers</div>
+                                                    <div><span style="opacity: 0.5;">Top Carriers:</span> Hartford, Zurich, Sompo, Nationwide, Markel</div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <div class="movement-row loss interactive" onclick="toggleTray(this)">
+                                        <span class="label">Carrier Losses</span>
+                                        <span class="value">1 <span style="font-size: 0.6rem; margin-left: 8px;">▼</span></span>
+                                    </div>
+                                    <div class="tray-container">
+                                        <div class="tray-content">
+                                            <div class="tray-row">
+                                                <div><strong style="color: #FFF; display: block; margin-bottom: 2px;">NATIONWIDE</strong><span style="color: var(--text-muted); font-size: 0.75rem;">Lost 12 Days Ago</span></div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <div class="movement-row loss interactive" onclick="toggleTray(this)">
+                                        <span class="label">Agency Terminations</span>
+                                        <span class="value">1 <span style="font-size: 0.6rem; margin-left: 8px;">▼</span></span>
+                                    </div>
+                                    <div class="tray-container">
+                                        <div class="tray-content">
+                                            <div class="tray-row" style="display: block;">
+                                                <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px;">
+                                                    <strong style="color: #FFF; font-size: 0.95rem;">NATIONWIDE</strong>
+                                                    <span style="color: var(--accent-red); font-size: 0.75rem; font-family: var(--font-mono);">Mass Termination Detected</span>
+                                                </div>
+                                                <div style="font-size: 0.75rem; color: var(--text-muted);">
+                                                    <span style="color: #FFF;">7 Producers</span> simultaneously stripped of appointments. Agency market access terminated.
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <div class="movement-row zero interactive" onclick="toggleTray(this)">
+                                        <span class="label">Rainmaker Hires</span>
+                                        <span class="value">0 <span style="font-size: 0.6rem; margin-left: 8px;">▼</span></span>
+                                    </div>
+                                    <div class="tray-container"><div class="tray-content" style="text-align: center; color: var(--text-muted);">No activity in 30 days</div></div>
+                                </div>
+
+                                <div>
+                                    <div class="movement-row zero interactive" onclick="toggleTray(this)">
+                                        <span class="label">New Appointments</span>
+                                        <span class="value">0 <span style="font-size: 0.6rem; margin-left: 8px;">▼</span></span>
+                                    </div>
+                                    <div class="tray-container"><div class="tray-content" style="text-align: center; color: var(--text-muted);">No activity in 30 days</div></div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="competitor-card">
+                            <div class="card-header">
+                                <div>
+                                    <h3>Apex Commercial Group</h3>
+                                    <div class="tracking-status">Tracking 18 Producers</div>
+                                </div>
+                                <button class="btn-ghost" style="padding: 0.3rem 0.8rem; font-size: 0.7rem;" onclick="openConfigPanel('Apex Commercial Group')">CONFIGURE ALERTS</button>
+                            </div>
+                            <div class="card-body">
+                                <div>
+                                    <div class="movement-row zero interactive" onclick="toggleTray(this)">
+                                        <span class="label">Rainmaker Defections</span>
+                                        <span class="value">0 <span style="font-size: 0.6rem; margin-left: 8px;">▼</span></span>
+                                    </div>
+                                    <div class="tray-container"><div class="tray-content" style="text-align: center; color: var(--text-muted);">No activity in 30 days</div></div>
+                                </div>
+
+                                <div>
+                                    <div class="movement-row zero interactive" onclick="toggleTray(this)">
+                                        <span class="label">Carrier Losses</span>
+                                        <span class="value">0 <span style="font-size: 0.6rem; margin-left: 8px;">▼</span></span>
+                                    </div>
+                                    <div class="tray-container"><div class="tray-content" style="text-align: center; color: var(--text-muted);">No activity in 30 days</div></div>
+                                </div>
+
+                                <div>
+                                    <div class="movement-row zero interactive" onclick="toggleTray(this)">
+                                        <span class="label">Agency Terminations</span>
+                                        <span class="value">0 <span style="font-size: 0.6rem; margin-left: 8px;">▼</span></span>
+                                    </div>
+                                    <div class="tray-container"><div class="tray-content" style="text-align: center; color: var(--text-muted);">No activity in 30 days</div></div>
+                                </div>
+
+                                <div>
+                                    <div class="movement-row hire interactive" onclick="toggleTray(this)">
+                                        <span class="label">Producer Hires</span>
+                                        <span class="value">3 <span style="font-size: 0.6rem; margin-left: 8px;">▼</span></span>
+                                    </div>
+                                    <div class="tray-container">
+                                        <div class="tray-content">
+                                            <div class="tray-row" style="display: block;">
+                                                <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px;">
+                                                    <strong style="color: #FFF; font-size: 0.95rem;">Sarah Jenkins</strong>
+                                                    <span style="color: var(--accent-green); font-size: 0.75rem; font-family: var(--font-mono);">Hired from: USI Insurance</span>
+                                                </div>
+                                                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 0.75rem; color: var(--text-muted);">
+                                                    <div><span style="opacity: 0.5;">Lines:</span> Commercial</div>
+                                                    <div><span style="opacity: 0.5;">Tenure:</span> 8 Yrs 6 Mos</div>
+                                                    <div><span style="opacity: 0.5;">Active Appts:</span> 18 Carriers</div>
+                                                    <div><span style="opacity: 0.5;">Top Carriers:</span> Liberty Mutual, AIG, Hiscox, QBE, Berkshire</div>
+                                                </div>
+                                            </div>
+                                            <div class="tray-row" style="display: block;">
+                                                <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px;">
+                                                    <strong style="color: #FFF; font-size: 0.95rem;">Michael Bates</strong>
+                                                    <span style="color: var(--accent-green); font-size: 0.75rem; font-family: var(--font-mono);">Hired from: Gallagher</span>
+                                                </div>
+                                                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 0.75rem; color: var(--text-muted);">
+                                                    <div><span style="opacity: 0.5;">Lines:</span> Benefits</div>
+                                                    <div><span style="opacity: 0.5;">Tenure:</span> 3 Yrs 1 Mo</div>
+                                                    <div><span style="opacity: 0.5;">Active Appts:</span> 6 Carriers</div>
+                                                    <div><span style="opacity: 0.5;">Top Carriers:</span> BCBS, UnitedHealthcare, Humana, Cigna, Aetna</div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <div class="movement-row appt interactive" onclick="toggleTray(this)">
+                                        <span class="label">New Appointments</span>
+                                        <span class="value">2 <span style="font-size: 0.6rem; margin-left: 8px;">▼</span></span>
+                                    </div>
+                                    <div class="tray-container">
+                                        <div class="tray-content">
+                                            <div class="tray-row">
+                                                <div><strong style="color: #FFF; display: block; margin-bottom: 2px;">CHUBB</strong><span style="color: var(--text-muted); font-size: 0.75rem;">Gained 18 Days Ago</span></div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+
+            </div>
+
+
+            <!-- ========================================== -->
+            <!-- VIEW: MARKET MOVEMENTS                     -->
+            <!-- ========================================== -->
+            <div id="viewMovements" class="unified-container" style="display: none;">
+                <section style="padding: 0; margin-bottom: 4rem;">
+                    <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 1.5rem; border-bottom: 1px solid var(--border-subtle); padding-bottom: 0.5rem;">
+                        <div class="dropdown-container" style="position: relative; display: inline-block;">
+                            <button class="section-header btn-ghost" style="border: none; padding: 0; display: flex; align-items: center; gap: 10px; background: transparent; cursor: pointer; margin-bottom: 0; justify-content: flex-start; border-bottom: none; padding-bottom: 0;" onclick="toggleTimeDropdown('movements')">
+                                <span id="movementsTimeLabel" style="font-weight: bold;">30 DAYS MARKET WATCH</span>
+                                <span style="font-size: 0.8rem; color: var(--text-muted);">▼</span>
+                            </button>
+                            <div id="movementsTimeDropdown" style="display: none; position: absolute; top: 100%; left: 0; background: rgba(13, 17, 26, 0.95); border: 1px solid var(--border-highlight); border-radius: 4px; padding: 0.5rem 0; z-index: 100; min-width: 250px; box-shadow: 0 4px 20px rgba(0,0,0,0.5); margin-top: 10px;">
+                                <div class="dropdown-option" style="padding: 0.8rem 1.5rem; cursor: pointer; color: #FFF; font-family: var(--font-header); font-size: 0.9rem; letter-spacing: 1px; transition: background 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.05)'" onmouseout="this.style.background='transparent'" onclick="updateTimeFilter('movements', '30 DAYS', this)">30 DAYS MARKET WATCH</div>
+                                <div class="dropdown-option" style="padding: 0.8rem 1.5rem; cursor: pointer; color: var(--text-muted); font-family: var(--font-header); font-size: 0.9rem; letter-spacing: 1px; transition: background 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.05)'" onmouseout="this.style.background='transparent'" onclick="updateTimeFilter('movements', '60 DAYS', this)">60 DAYS MARKET WATCH</div>
+                                <div class="dropdown-option" style="padding: 0.8rem 1.5rem; cursor: pointer; color: var(--text-muted); font-family: var(--font-header); font-size: 0.9rem; letter-spacing: 1px; transition: background 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.05)'" onmouseout="this.style.background='transparent'" onclick="updateTimeFilter('movements', '12 MONTHS', this)">12 MONTHS MARKET WATCH</div>
+                            </div>
+                        </div>
+
+                        <div style="display: flex; gap: 15px; align-items: center; font-family: var(--font-mono); font-size: 0.85rem; padding-bottom: 0.2rem;">
+                            <div style="color: var(--text-muted);">AREA:</div>
+                            <div style="position: relative;">
+                                <select class="btn-ghost" style="padding: 0.3rem 1.5rem 0.3rem 1rem; border-color: var(--border-subtle); color: #FFF; background: transparent; cursor: pointer; border-radius: 4px; appearance: none; outline: none; text-align: left;">
+                                    <option style="background: #0d111a;">Houston MSA</option>
+                                    <option style="background: #0d111a;">Dallas MSA</option>
+                                    <option style="background: #0d111a;">Austin MSA</option>
+                                </select>
+                                <span style="position: absolute; right: 8px; top: 50%; transform: translateY(-50%); font-size: 0.6rem; color: var(--text-muted); pointer-events: none;">▼</span>
+                            </div>
+                            
+                            <div style="color: var(--text-muted); margin-left: 10px;">ZIP:</div>
+                            <input type="text" class="btn-ghost" placeholder="All Zips" style="padding: 0.3rem 1rem; border-color: var(--border-subtle); color: #FFF; background: transparent; width: 100px; border-radius: 4px; outline: none; text-align: left;">
+                        </div>
+                    </div>
+                    <div class="competitors-grid">
+                        <div class="competitor-card">
+                            <div class="card-header">
+                                <div>
+                                    <h3>Smith & Co Insurance</h3>
+                                    <div class="tracking-status">Tracking 42 Producers</div>
+                                </div>
+                                <button class="btn-ghost" style="padding: 0.3rem 0.8rem; font-size: 0.7rem;">START WATCHING</button>
+                            </div>
+                            <div class="card-body">
+                                <div>
+                                    <div class="movement-row exit">
+                                        <span class="label">Rainmaker Defections</span>
+                                        <span class="value">2</span>
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <div class="movement-row loss">
+                                        <span class="label">Carrier Losses</span>
+                                        <span class="value">1</span>
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <div class="movement-row loss">
+                                        <span class="label">Agency Terminations</span>
+                                        <span class="value">1</span>
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <div class="movement-row zero">
+                                        <span class="label">Producer Hires</span>
+                                        <span class="value">0</span>
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <div class="movement-row zero">
+                                        <span class="label">New Appointments</span>
+                                        <span class="value">0</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="competitor-card">
+                            <div class="card-header">
+                                <div>
+                                    <h3>Apex Commercial Group</h3>
+                                    <div class="tracking-status">Tracking 18 Producers</div>
+                                </div>
+                                <button class="btn-ghost" style="padding: 0.3rem 0.8rem; font-size: 0.7rem;">START WATCHING</button>
+                            </div>
+                            <div class="card-body">
+                                <div>
+                                    <div class="movement-row zero">
+                                        <span class="label">Rainmaker Defections</span>
+                                        <span class="value">0</span>
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <div class="movement-row zero">
+                                        <span class="label">Carrier Losses</span>
+                                        <span class="value">0</span>
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <div class="movement-row zero">
+                                        <span class="label">Agency Terminations</span>
+                                        <span class="value">0</span>
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <div class="movement-row hire">
+                                        <span class="label">Producer Hires</span>
+                                        <span class="value">3</span>
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <div class="movement-row appt">
+                                        <span class="label">New Appointments</span>
+                                        <span class="value">2</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+
+            </div>
+            
+        </main>
+    </div>
+
+    <!-- MODAL: CONFIGURATION POPUP -->
+    <div class="modal-overlay" id="configModal" onclick="if(event.target === this) closeAllPanels()">
+        <div class="modal-content glass-card" style="padding: 3rem; max-width: 600px; width: 90%; margin: auto; position: relative;">
+            <button class="btn-ghost" style="position: absolute; top: 1.5rem; right: 1.5rem; padding: 0.3rem 0.8rem; font-size: 0.75rem;" onclick="closeAllPanels()">[X] CLOSE</button>
+            <div style="margin-bottom: 2.5rem; text-align: center;">
+                <span style="color: var(--accent-red); font-family: var(--font-mono); font-size: 0.75rem; letter-spacing: 2px;">[ ALERT CONFIGURATION ]</span>
+                <h2 style="font-size: 2rem; margin-bottom: 0;" id="configTitle">Competitor Name</h2>
+            </div>
+            
+            <div style="margin-bottom: 2.5rem;">
+                <div style="display: flex; justify-content: space-between; margin-bottom: 1rem;">
+                    <h3 style="font-family: var(--font-mono); font-size: 0.85rem; color: var(--text-muted); text-transform: uppercase;">Minimum Industry Tenure</h3>
+                    <span id="tenureValue" style="color: var(--accent-green); font-family: var(--font-mono); font-weight: bold;">Any</span>
+                </div>
+                <input type="range" min="0" max="15" value="0" class="range-slider" id="tenureSlider" oninput="document.getElementById('tenureValue').innerText = this.value == 0 ? 'Any' : (this.value == 15 ? '15+ Years' : this.value + ' Years')">
+                <div style="display: flex; justify-content: space-between; color: var(--text-muted); font-size: 0.7rem; font-family: var(--font-mono); margin-top: 0.5rem;">
+                    <span>0</span>
+                    <span>5</span>
+                    <span>10</span>
+                    <span>15+</span>
+                </div>
+            </div>
+
+            <div style="margin-bottom: 3rem;">
+                <h3 style="font-family: var(--font-mono); font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.5rem; text-transform: uppercase;">Required Commercial Lines</h3>
+                <p style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-muted); margin-bottom: 1.5rem;">Only alert me if the exiting producer holds appointments with:</p>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                    <label style="display: flex; justify-content: space-between; align-items: center; cursor: pointer; color: white; font-family: var(--font-mono); font-size: 0.9rem;">
+                        Chubb
+                        <label class="switch"><input type="checkbox"><span class="slider round"></span></label>
+                    </label>
+                    <label style="display: flex; justify-content: space-between; align-items: center; cursor: pointer; color: white; font-family: var(--font-mono); font-size: 0.9rem;">
+                        Travelers
+                        <label class="switch"><input type="checkbox"><span class="slider round"></span></label>
+                    </label>
+                    <label style="display: flex; justify-content: space-between; align-items: center; cursor: pointer; color: white; font-family: var(--font-mono); font-size: 0.9rem;">
+                        Cincinnati
+                        <label class="switch"><input type="checkbox"><span class="slider round"></span></label>
+                    </label>
+                    <label style="display: flex; justify-content: space-between; align-items: center; cursor: pointer; color: white; font-family: var(--font-mono); font-size: 0.9rem;">
+                        Hartford
+                        <label class="switch"><input type="checkbox"><span class="slider round"></span></label>
+                    </label>
+                </div>
+            </div>
+            
+            <button class="btn-primary-full" onclick="saveConfig(this)">SAVE T-30 ALERTS</button>
+        </div>
+    </div>
+
+
+    <!-- SCRIPTS -->
+    <script>
+        const configModal = document.getElementById('configModal');
+
+        function switchTab(tabId) {
+            closeAllPanels();
+            
+            // Update Nav
+            document.getElementById('navWatchlist').classList.remove('active');
+            document.getElementById('navMovements').classList.remove('active');
+            
+            // Hide Views
+            document.getElementById('viewWatchlist').style.display = 'none';
+            document.getElementById('viewMovements').style.display = 'none';
+
+            if (tabId === 'watchlist') {
+                document.getElementById('navWatchlist').classList.add('active');
+                document.getElementById('viewWatchlist').style.display = 'block';
+            } else if (tabId === 'movements') {
+                document.getElementById('navMovements').classList.add('active');
+                document.getElementById('viewMovements').style.display = 'block';
+            }
+        }
+
+        function closeAllPanels() {
+            configModal.classList.remove('active');
+        }
+
+        function openConfigPanel(entityName) {
+            closeAllPanels();
+            document.getElementById('configTitle').innerText = entityName;
+            configModal.classList.add('active');
+        }
+
+
+
+        function saveConfig(btn) {
+            btn.innerHTML = '<div class="loading-dot" style="display:inline-block; margin-right: 10px;"></div> SAVING...';
+            setTimeout(() => {
+                btn.innerHTML = '✓ SAVED';
+                btn.style.backgroundColor = 'var(--accent-green)';
+                btn.style.color = '#000';
+                setTimeout(() => {
+                    closeAllPanels();
+                    setTimeout(() => {
+                        btn.innerHTML = 'SAVE T-30 ALERTS';
+                        btn.style.backgroundColor = '';
+                        btn.style.color = '';
+                    }, 300);
+                }, 1000);
+            }, 800);
+        }
+
+        function toggleTimeDropdown(view) {
+            const dropdownId = view === 'watchlist' ? 'watchlistTimeDropdown' : 'movementsTimeDropdown';
+            const dropdown = document.getElementById(dropdownId);
+            dropdown.style.display = dropdown.style.display === 'none' ? 'block' : 'none';
+        }
+
+        function toggleTray(rowEl) {
+            const cardBody = rowEl.closest('.card-body');
+            
+            // Close other trays in this card
+            cardBody.querySelectorAll('.tray-container').forEach(tray => {
+                if (tray !== rowEl.nextElementSibling) {
+                    tray.classList.remove('open');
+                }
+            });
+
+            // Toggle this tray
+            const targetTray = rowEl.nextElementSibling;
+            targetTray.classList.toggle('open');
+        }
+
+        function updateTimeFilter(view, timeStr, el) {
+            const labelId = view === 'watchlist' ? 'watchlistTimeLabel' : 'movementsTimeLabel';
+            const dropdownId = view === 'watchlist' ? 'watchlistTimeDropdown' : 'movementsTimeDropdown';
+            
+            document.getElementById(labelId).innerText = timeStr + ' MARKET WATCH';
+            document.getElementById(dropdownId).style.display = 'none';
+            document.querySelectorAll('#' + dropdownId + ' .dropdown-option').forEach(opt => {
+                opt.style.color = 'var(--text-muted)';
+            });
+            el.style.color = '#FFF';
+        }
+    </script>
+</body>
+</html>

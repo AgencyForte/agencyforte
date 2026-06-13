@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AgencyForte | Initialize Watchlist</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;700&family=Outfit:wght@400;700;900&display=swap" rel="stylesheet">
+    <style>
+        /* Specific styles for the onboarding flow */
+        body {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            overflow: hidden; /* Keep it focused */
+        }
+
+        .onboarding-container {
+            width: 100%;
+            max-width: 600px;
+            z-index: 10;
+        }
+
+        .onboarding-header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+
+        .onboarding-header h2 {
+            font-size: 2.5rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .onboarding-header p {
+            color: var(--text-muted);
+            font-size: 1.1rem;
+        }
+
+        .input-group {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 2rem;
+        }
+
+        .agency-input {
+            flex-grow: 1;
+            background: rgba(0, 0, 0, 0.5);
+            border: 1px solid var(--border-highlight);
+            color: var(--text-main);
+            padding: 1rem 1.5rem;
+            border-radius: 6px;
+            font-family: var(--font-body);
+            font-size: 1.1rem;
+            outline: none;
+            transition: all 0.3s;
+        }
+
+        .agency-input:focus {
+            border-color: var(--accent-green);
+            box-shadow: 0 0 15px rgba(0, 255, 102, 0.1);
+        }
+
+        .agency-input::placeholder {
+            color: rgba(255, 255, 255, 0.2);
+        }
+
+        .target-list {
+            margin-bottom: 2rem;
+            min-height: 100px; /* Keep layout stable */
+        }
+
+        .target-item {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid var(--border-subtle);
+            padding: 1rem;
+            border-radius: 6px;
+            margin-bottom: 0.5rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-family: var(--font-mono);
+            font-size: 0.9rem;
+            animation: slideIn 0.3s ease forwards;
+        }
+
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateX(-20px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+
+        .target-name {
+            color: var(--text-main);
+            font-weight: bold;
+        }
+
+        .target-status {
+            color: var(--accent-green);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .target-status.scanning {
+            color: var(--accent-blue);
+        }
+
+        .loading-dot {
+            width: 6px; height: 6px;
+            background: currentColor;
+            border-radius: 50%;
+            animation: pulse 1s infinite;
+        }
+
+        .btn-continue {
+            width: 100%;
+            opacity: 0.5;
+            pointer-events: none;
+            transition: all 0.3s;
+        }
+
+        .btn-continue.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .progress-text {
+            text-align: center;
+            font-family: var(--font-mono);
+            color: var(--text-muted);
+            font-size: 0.8rem;
+            margin-top: 1rem;
+        }
+
+        .btn-remove {
+            color: var(--accent-red);
+            cursor: pointer;
+            font-family: var(--font-mono);
+            font-size: 0.8rem;
+            background: none;
+            border: none;
+            padding: 0;
+            margin-left: 15px;
+            opacity: 0.6;
+            transition: opacity 0.2s;
+        }
+
+        .btn-remove:hover {
+            opacity: 1;
+            text-shadow: 0 0 8px rgba(255, 51, 51, 0.5);
+        }
+    </style>
+</head>
+<body>
+
+    <div class="ambient-glow glow-1"></div>
+    <div class="ambient-glow glow-2"></div>
+    <div class="noise-overlay"></div>
+
+    <div class="onboarding-container fade-in-up">
+        <div class="glass-card" id="step1">
+            <div class="onboarding-header">
+                <div class="logo" style="justify-content: center; margin-bottom: 1rem; font-size: 1.2rem; opacity: 0.8;">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="var(--accent-red)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        <path d="M2 17L12 22L22 17" stroke="var(--accent-red)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        <path d="M2 12L12 17L22 12" stroke="var(--accent-red)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                    AGENCY<span>FORTE</span>
+                </div>
+                <h2>Initialize Workspace</h2>
+                <p>Enter up to 5 competitors. You will receive immediate alerts the exact hour they suffer a <strong>Producer Exit</strong> or a <strong>Carrier De-Appointment</strong>.</p>
+            </div>
+
+            <div class="input-group">
+                <input type="text" id="agencyInput" class="agency-input" placeholder="e.g., Smith & Co Insurance" autocomplete="off">
+                <button id="addBtn" class="btn-ghost">Add Competitor</button>
+            </div>
+
+            <div class="target-list" id="targetList">
+                </div>
+
+            <button id="continueBtn" class="btn-primary-full btn-continue">
+                Complete Setup & Launch Dashboard
+            </button>
+            <div class="progress-text" id="progressText">0 / 5 Competitors Added</div>
+        </div>
+    </div>
+
+    <script>
+        const input = document.getElementById('agencyInput');
+        const addBtn = document.getElementById('addBtn');
+        const targetList = document.getElementById('targetList');
+        const continueBtn = document.getElementById('continueBtn');
+        const progressText = document.getElementById('progressText');
+        
+        let targetCount = 0;
+        const maxTargets = 5;
+
+        function updateUIState() {
+            progressText.innerText = `${targetCount} / ${maxTargets} Competitors Added`;
+            
+            if (targetCount > 0) {
+                continueBtn.classList.add('active');
+            } else {
+                continueBtn.classList.remove('active');
+            }
+
+            if (targetCount < maxTargets) {
+                input.disabled = false;
+                addBtn.disabled = false;
+                if (input.placeholder === "Maximum targets reached.") {
+                    input.placeholder = "e.g., Smith & Co Insurance";
+                }
+            }
+        }
+
+        function addTarget() {
+            const name = input.value.trim();
+            if (name === '' || targetCount >= maxTargets) return;
+
+            targetCount++;
+            
+            // Create target row container
+            const item = document.createElement('div');
+            item.className = 'target-item';
+            item.innerHTML = `
+                <span class="target-name">> ${name}</span>
+                <div style="display: flex; align-items: center;">
+                    <span class="target-status scanning"><div class="loading-dot"></div> Cross-referencing database...</span>
+                    <button class="btn-remove" style="display: none;">[ REMOVE ]</button>
+                </div>
+            `;
+            
+            targetList.appendChild(item);
+            input.value = '';
+
+            updateUIState();
+
+            if (targetCount >= maxTargets) {
+                input.disabled = true;
+                addBtn.disabled = true;
+                input.placeholder = "Maximum targets reached.";
+            }
+
+            const scanTimeout = setTimeout(() => {
+                const statusSpan = item.querySelector('.target-status');
+                const removeBtn = item.querySelector('.btn-remove');
+                
+                statusSpan.className = 'target-status'; 
+                statusSpan.innerHTML = `[ VERIFIED & ADDED ]`;
+                
+                removeBtn.style.display = 'inline-block';
+            }, 1500);
+
+            item.querySelector('.btn-remove').addEventListener('click', () => {
+                clearTimeout(scanTimeout);
+                item.remove();
+                targetCount--;
+                updateUIState();
+            });
+        }
+
+        addBtn.addEventListener('click', addTarget);
+        input.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') addTarget();
+        });
+
+        continueBtn.addEventListener('click', () => {
+            continueBtn.innerHTML = '<div class="loading-dot" style="display:inline-block; margin-right: 10px;"></div> Initializing Dashboard...';
+            setTimeout(() => {
+                window.location.href = 'dashboard.html';
+            }, 1500);
+        });
+    </script>
+</body>
+</html>
