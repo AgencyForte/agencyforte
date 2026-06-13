@@ -97,14 +97,17 @@ def main():
     try:
         today_df = pl.read_csv(TDI_CSV_URL, ignore_errors=True)
         today_df = today_df.rename({
-            "Firm Name": "agency_name",
-            "Agent Name": "agent_name",
-            "NPN": "agent_npn",
-            "Company Name": "carrier_name",
-            "Issue Date": "appointment_date",
-            "License Type": "lines",
-            "Zip Code": "zip_code"
+            "Agency name": "agency_name",
+            "Agency NPN": "agent_npn",
+            "Insurance company name": "carrier_name",
+            "Appointment active date": "appointment_date",
+            "Appointment type": "lines",
+            "Postal code": "zip_code"
         }, strict=False)
+        
+        # We need an agent_name column even though it doesn't exist in this dataset, for the UI
+        today_df = today_df.with_columns(pl.lit("").alias("agent_name"))
+        
         print(f"      Downloaded {len(today_df)} active appointments.")
     except Exception as e:
         print(f"      Failed to download TDI data. Creating mock today_df for pipeline testing.")
