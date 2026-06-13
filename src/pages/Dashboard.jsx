@@ -2,39 +2,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import './dashboard.css'
 
-const MOCK_ALERTS = [
-  // Dallas-Fort Worth
-  { agency_name: 'Goosehead Insurance', event_type: 'defection', agent_name: 'Marcus Vance', agent_npn: '8839210', carrier_name: 'Travelers', new_agency: 'Willis Towers Watson', agent_tenure_years: 12, top_carriers: 'Travelers, Hartford, Chubb', is_read: false, region: 'Dallas-Fort Worth', zip_code: '75039' },
-  { agency_name: 'Goosehead Insurance', event_type: 'carrier_loss', carrier_name: 'NATIONWIDE', is_read: false, region: 'Dallas-Fort Worth', zip_code: '75039' },
-  { agency_name: 'BKS Partners', event_type: 'hire', agent_name: 'David Ortiz', agent_npn: '992122', carrier_name: 'Liberty Mutual', previous_agency: 'USI Insurance', agent_tenure_years: 8, top_carriers: 'Liberty Mutual, AIG', is_read: false, region: 'Dallas-Fort Worth', zip_code: '76102' },
-  
-  // Greater Houston
-  { agency_name: 'Higginbotham', event_type: 'hire', agent_name: 'Sarah Jenkins', agent_npn: '445123', carrier_name: 'Liberty Mutual', previous_agency: 'Gallagher', agent_tenure_years: 8, top_carriers: 'Liberty Mutual, Hiscox', is_read: false, region: 'Greater Houston', zip_code: '77002' },
-  { agency_name: 'Higginbotham', event_type: 'new_appt', carrier_name: 'CHUBB', is_read: false, region: 'Greater Houston', zip_code: '77002' },
-  { agency_name: 'Dean & Draper', event_type: 'defection', agent_name: 'Michael Bates', agent_npn: '1234567', carrier_name: 'Chubb', new_agency: 'Unknown', agent_tenure_years: 14, top_carriers: 'Chubb, AIG', is_read: false, region: 'Greater Houston', zip_code: '77042' },
-  { agency_name: 'Dean & Draper', event_type: 'agency_termination', carrier_name: 'NATIONWIDE', is_read: false, region: 'Greater Houston', zip_code: '77042' },
 
-  // Austin / Central Texas
-  { agency_name: 'Watkins Insurance Group', event_type: 'hire', agent_name: 'Jessica Wong', agent_npn: '112344', carrier_name: 'Chubb', previous_agency: 'Marsh', agent_tenure_years: 5, top_carriers: 'Chubb, Travelers', is_read: false, region: 'Austin / Central Texas', zip_code: '78731' },
-  { agency_name: 'Watkins Insurance Group', event_type: 'new_appt', carrier_name: 'HARTFORD', is_read: false, region: 'Austin / Central Texas', zip_code: '78731' },
-  
-  // San Antonio
-  { agency_name: 'Wortham Insurance', event_type: 'defection', agent_name: 'Robert Davis', agent_npn: '556123', carrier_name: 'Travelers', new_agency: 'Higginbotham', agent_tenure_years: 9, top_carriers: 'Travelers, Nationwide', is_read: false, region: 'San Antonio', zip_code: '78205' },
-  
-  // West Texas
-  { agency_name: 'First Basin Insurance', event_type: 'carrier_loss', carrier_name: 'ZURICH', is_read: false, region: 'West Texas', zip_code: '79701' },
-  { agency_name: 'First Basin Insurance', event_type: 'new_appt', carrier_name: 'AIG', is_read: false, region: 'West Texas', zip_code: '79701' }
-];
-
-const MOCK_DIRECTORY = [
-  { agency_name: 'Goosehead Insurance', region: 'Dallas-Fort Worth', total_producers: 142 },
-  { agency_name: 'BKS Partners', region: 'Dallas-Fort Worth', total_producers: 87 },
-  { agency_name: 'Higginbotham', region: 'Greater Houston', total_producers: 312 },
-  { agency_name: 'Dean & Draper', region: 'Greater Houston', total_producers: 95 },
-  { agency_name: 'Watkins Insurance Group', region: 'Austin / Central Texas', total_producers: 120 },
-  { agency_name: 'Wortham Insurance', region: 'San Antonio', total_producers: 65 },
-  { agency_name: 'First Basin Insurance', region: 'West Texas', total_producers: 22 },
-];
 
 export default function Dashboard() {
   const [activeTab, setActiveTab] = useState('watchlist')
@@ -61,7 +29,7 @@ export default function Dashboard() {
       if (alertError) {
         console.error("Error fetching alerts:", alertError)
       } else {
-        setAlerts(alertData && alertData.length > 0 ? alertData : MOCK_ALERTS)
+        setAlerts(alertData || [])
       }
 
       // Fetch Directory
@@ -70,8 +38,8 @@ export default function Dashboard() {
         .select('*')
         .limit(500)
 
-      if (dirError || !dirData || dirData.length === 0) {
-        setDirectories(MOCK_DIRECTORY)
+      if (dirError || !dirData) {
+        setDirectories([])
       } else {
         setDirectories(dirData)
       }
