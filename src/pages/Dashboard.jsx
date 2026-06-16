@@ -15,6 +15,7 @@ export default function Dashboard() {
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const [expandedEvent, setExpandedEvent] = useState({})
   const [expandedNested, setExpandedNested] = useState({})
+  const [expandedContext, setExpandedContext] = useState({})
 
   const [selectedRegion, setSelectedRegion] = useState(localStorage.getItem('market_region') || 'All Texas')
   const [selectedLOB, setSelectedLOB] = useState(localStorage.getItem('market_lob') || 'All LOBs')
@@ -711,7 +712,7 @@ export default function Dashboard() {
                       // Aggregate feed
                       let feed = [
                         ...defection.map(m => ({
-                          type: 'exit', badge: 'Producer Exit', date: m.movement_date, subject: `${m.producer?.first_name} ${m.producer?.last_name}`,
+                          type: 'exit', badge: 'DEFECTION', date: m.movement_date, subject: `${m.producer?.first_name} ${m.producer?.last_name}`, role: `${m.producer?.original_license_date && (new Date() - new Date(m.producer.original_license_date)) / 31536000000 >= 5 ? 'Senior' : 'Junior'} Producer`,
                           details: activeTab === 'watchlist'
                             ? {
                               NPN: m.producer?.npn || `${Math.floor(10000000 + Math.random() * 90000000)}`,
@@ -723,7 +724,7 @@ export default function Dashboard() {
                             : { Tenure: formatTenure(m.producer?.original_license_date), 'Region': data.msa || 'Unknown', 'Product Lines': 'P&C, Life', 'Dest.': 'Unknown' }
                         })),
                         ...hire.map(m => ({
-                          type: 'hire', badge: 'Producer Hire', date: m.movement_date, subject: `${m.producer?.first_name} ${m.producer?.last_name}`,
+                          type: 'hire', badge: 'ACQUISITION', date: m.movement_date, subject: `${m.producer?.first_name} ${m.producer?.last_name}`, role: `${m.producer?.original_license_date && (new Date() - new Date(m.producer.original_license_date)) / 31536000000 >= 5 ? 'Senior' : 'Junior'} Producer`,
                           details: activeTab === 'watchlist'
                             ? {
                               NPN: m.producer?.npn || `${Math.floor(10000000 + Math.random() * 90000000)}`,
@@ -739,7 +740,7 @@ export default function Dashboard() {
                           const mockProducers = Array.from({ length: count }).map((_, i) => ({ name: `Producer ${i + 1}`, npn: `${Math.floor(10000000 + Math.random() * 90000000)}` }))
 
                           return {
-                            type: 'loss', badge: 'Carrier Lost', date: e.event_date, subject: e.carrier?.carrier_name,
+                            type: 'loss', badge: 'TERMINATION', date: e.event_date, subject: e.carrier?.carrier_name,
                             details: activeTab === 'watchlist'
                               ? {
                                 'Carrier Lines': 'Commercial Auto, Property',
@@ -758,7 +759,7 @@ export default function Dashboard() {
                           const mockProducers = Array.from({ length: count }).map((_, i) => ({ name: `Producer ${i + 1}`, npn: `${Math.floor(10000000 + Math.random() * 90000000)}` }))
 
                           return {
-                            type: 'appt', badge: 'New Carrier', date: e.event_date, subject: e.carrier?.carrier_name,
+                            type: 'appt', badge: 'NEW MARKET', date: e.event_date, subject: e.carrier?.carrier_name,
                             details: activeTab === 'watchlist'
                               ? {
                                 'Carrier Lines': 'Commercial Property',
@@ -774,123 +775,189 @@ export default function Dashboard() {
                         })
                       ].sort((a, b) => new Date(b.date) - new Date(a.date));
 
-                      // DEMO FALLBACK
-                      if (feed.length === 0) {
-                        feed.push({
-                          type: 'exit', badge: 'Producer Exit', date: new Date().toISOString(), subject: `Senior Producer`,
-                          details: activeTab === 'watchlist' ? {
-                            NPN: `${Math.floor(10000000 + Math.random() * 90000000)}`,
-                            'Total Tenure': '12.5 Yrs',
-                            'Agency Tenure': '4.2 Yrs',
-                            'Product Lines': 'Commercial P&C',
-                            'Carrier Appts': 'Progressive, Safeco'
-                          } : {
-                            Tenure: '12.5 Yrs', 'Region': data.msa || 'Unknown', 'Product Lines': 'P&C, Life', 'Dest.': 'Unknown'
-                          }
-                        });
-                      }
+                      let statHires = hire.length;
+                      let statExits = defection.length;
+                      let statNewAppts = new_appt.length;
+                      let statLostAppts = carrier_loss.length + agency_termination.length;
+
+                      // DEMO FALLBACK (Forced for UI Review)
+                      statHires += 1;
+                      statExits += 1;
+                      statNewAppts += 1;
+                      statLostAppts += 1;
+
+                      feed.push(
+                        {
+                          type: 'exit', badge: 'DEFECTION', date: new Date(Date.now() - 2 * 86400000).toISOString(), subject: `Michael Sterling`, role: `Senior Producer`,
+                          details: activeTab === 'watchlist' ? { NPN: `${Math.floor(10000000 + Math.random() * 90000000)}`, 'Total Tenure': '12.5 Yrs', 'Agency Tenure': '4.2 Yrs', 'Product Lines': 'Commercial P&C', 'Carrier Appts': 'Progressive, Safeco' } : { Tenure: '12.5 Yrs', 'Region': data.msa || 'Unknown', 'Product Lines': 'P&C, Life', 'Dest.': 'Unknown' }
+                        },
+                        {
+                          type: 'loss', badge: 'TERMINATION', date: new Date(Date.now() - 5 * 86400000).toISOString(), subject: `Safeco Insurance`,
+                          details: activeTab === 'watchlist' ? { 'Carrier Lines': 'Personal Auto, Home', 'Producers Orphaned': { type: 'nested_list', label: `4 Producers`, items: Array.from({ length: 4 }).map((_, i) => ({ name: `Producer ${i + 1}`, npn: `${Math.floor(10000000 + Math.random() * 90000000)}` })) }, 'Agency Impact': 'Loss of preferred tier status' } : { 'Carrier Lines': 'Personal Auto, Home', 'Producers Orphaned': { type: 'nested_list', label: `4 Producers`, items: Array.from({ length: 4 }).map((_, i) => ({ name: `Producer ${i + 1}`, npn: `${Math.floor(10000000 + Math.random() * 90000000)}` })) }, 'Agency Impact': 'Loss of preferred tier status' }
+                        },
+                        {
+                          type: 'hire', badge: 'ACQUISITION', date: new Date(Date.now() - 12 * 86400000).toISOString(), subject: `Sarah Jenkins`, role: `Junior Producer`,
+                          details: activeTab === 'watchlist' ? { NPN: `${Math.floor(10000000 + Math.random() * 90000000)}`, 'Total Tenure': '8.0 Yrs', 'Prev. Agency Tenure': '3.1 Yrs', 'Product Lines': 'Commercial Auto, Workers Comp', 'Carrier Appts': 'Travelers, Hartford' } : { Tenure: '8.0 Yrs', 'Region': data.msa || 'Unknown', 'Product Lines': 'Commercial Auto, Workers Comp', 'Prev.': 'State Farm' }
+                        },
+                        {
+                          type: 'appt', badge: 'NEW MARKET', date: new Date(Date.now() - 18 * 86400000).toISOString(), subject: `Travelers Property Casualty`,
+                          details: activeTab === 'watchlist' ? { 'Carrier Lines': 'Commercial Property, BOP', 'Producers Appointed': { type: 'nested_list', label: `2 Producers`, items: Array.from({ length: 2 }).map((_, i) => ({ name: `Producer ${i + 1}`, npn: `${Math.floor(10000000 + Math.random() * 90000000)}` })) }, 'Agency Impact': 'New Commercial Market Gained' } : { 'Carrier Lines': 'Commercial Property, BOP', 'Producers Appointed': { type: 'nested_list', label: `2 Producers`, items: Array.from({ length: 2 }).map((_, i) => ({ name: `Producer ${i + 1}`, npn: `${Math.floor(10000000 + Math.random() * 90000000)}` })) }, 'Agency Impact': 'New Commercial Market Gained' }
+                        }
+                      );
+                      
+                      // Sort again just in case real events were older than the mocks
+                      feed.sort((a, b) => new Date(b.date) - new Date(a.date));
 
                       return (
-                        <div className="intelligence-strip" key={`watch-${index}`}>
-                          <div className="strip-analytics">
-                            <div className="stat-row">
-                              <span className="stat-label">Hires</span>
-                              <span className="stat-value" style={{ color: hire.length > 0 ? '#2ed573' : 'inherit' }}>{hire.length}</span>
+                        <div className="intelligence-card" key={`watch-${index}`}>
+                          
+                          {/* 1. Header (Top-Span) */}
+                          <div className="card-top-bar">
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                              <h3 style={{ margin: 0, fontSize: '1.2rem', color: '#FFF' }}>{agencyName}</h3>
+                              <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                                HQ: {data.msa ? data.msa.split('-')[0].split(',')[0] : 'Texas'}, TX &nbsp;•&nbsp; Producers: {total_producers_count || '?'}
+                              </span>
                             </div>
-                            <div className="stat-row">
-                              <span className="stat-label">Exits</span>
-                              <span className="stat-value" style={{ color: defection.length > 0 ? '#ff6b81' : 'inherit' }}>{defection.length}</span>
-                            </div>
-                            <div className="stat-row">
-                              <span className="stat-label">New Appts</span>
-                              <span className="stat-value" style={{ color: new_appt.length > 0 ? '#70a1ff' : 'inherit' }}>{new_appt.length}</span>
-                            </div>
-                            <div className="stat-row">
-                              <span className="stat-label">Lost Appts</span>
-                              <span className="stat-value" style={{ color: (carrier_loss.length + agency_termination.length) > 0 ? '#ffa502' : 'inherit' }}>{carrier_loss.length + agency_termination.length}</span>
-                            </div>
-                          </div>
-
-                          <div className="strip-content">
-                            <div className="intelligence-strip-header">
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                                <h3>{agencyName}</h3>
-                                {data.threat_context?.length > 0 && (
-                                  <span style={{ fontSize: '0.75rem', color: 'var(--accent-red)', fontFamily: 'var(--font-mono)' }}>
-                                    ⚠ Competes for {data.threat_context.slice(0, 2).join(' & ')}
-                                  </span>
-                                )}
-                              </div>
-                              <div className="intelligence-strip-meta" style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
-                                <span>{activeTab === 'movements' ? `Region: ${data.msa || 'Texas'}` : `Tracking ${total_producers_count || '?'} Producers`}</span>
-                                {activeTab === 'watchlist' ? (
-                                  <button className="btn-ghost" style={{ padding: '0.2rem 0.5rem', fontSize: '0.65rem' }} onClick={() => openConfig(agencyName)}>CONFIG</button>
-                                ) : (
-                                  <button className="btn-ghost" style={{ padding: '0.2rem 0.5rem', fontSize: '0.65rem', color: 'var(--accent-blue)', borderColor: 'var(--accent-blue)' }}>+ WATCHLIST</button>
-                                )}
-                              </div>
-                            </div>
-
-                            <div className="intelligence-strip-ticker">
-                              {feed.length === 0 ? (
-                                <span style={{ color: 'var(--text-muted)' }}>No recent activity detected in the last 30 days.</span>
+                            <div>
+                              {activeTab === 'watchlist' ? (
+                                <button className="btn-ghost" style={{ padding: '0.3rem 0.8rem', fontSize: '0.7rem' }} onClick={() => openConfig(agencyName)}>CONFIG</button>
                               ) : (
-                                feed.map((item, idx) => (
-                                  <div key={idx} style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-                                    <div
-                                      className={`ticker-event ${expandedEvent[agencyName] === idx ? 'active' : ''}`}
-                                      onClick={() => setExpandedEvent(prev => ({ ...prev, [agencyName]: prev[agencyName] === idx ? null : idx }))}
-                                    >
-                                      <span className={`badge badge-${item.type}`}>{item.badge.toUpperCase()}</span>
-                                      <span className="ticker-subject">{item.subject}</span>
-                                    </div>
-                                    {expandedEvent[agencyName] === idx && (
-                                      <div className="ticker-inline-drawer">
-                                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '0.3rem' }}>
-                                          <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', letterSpacing: '0.5px' }}>EVENT DETAILS</span>
-                                          <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>{new Date(item.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}</span>
-                                        </div>
-                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
-                                          {Object.entries(item.details).map(([key, val]) => {
-                                            if (val && val.type === 'nested_list') {
-                                              const nestedKey = `${agencyName}-${idx}-${key}`
-                                              return (
-                                                <div key={key} style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', borderTop: '1px dashed rgba(255,255,255,0.1)', paddingTop: '0.4rem', marginTop: '0.2rem' }}>
-                                                  <div
-                                                    style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}
-                                                    onClick={() => setExpandedNested(prev => ({ ...prev, [nestedKey]: !prev[nestedKey] }))}
-                                                  >
-                                                    <span style={{ fontSize: '0.7rem', color: 'var(--accent-blue)' }}>{key} <span style={{ fontSize: '0.55rem' }}>{expandedNested[nestedKey] ? '▲' : '▼'}</span></span>
-                                                    <span style={{ fontSize: '0.75rem', color: '#FFF', fontWeight: 500 }}>{val.label}</span>
-                                                  </div>
-                                                  {expandedNested[nestedKey] && (
-                                                    <div style={{ background: 'rgba(0,0,0,0.3)', padding: '0.5rem', borderRadius: '4px', maxHeight: '100px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.3rem', border: '1px solid rgba(255,255,255,0.05)' }}>
-                                                      {val.items.map((prod, i) => (
-                                                        <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.65rem' }}>
-                                                          <span style={{ color: '#FFF' }}>{prod.name}</span>
-                                                          <span style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>{prod.npn}</span>
-                                                        </div>
-                                                      ))}
-                                                    </div>
-                                                  )}
-                                                </div>
-                                              )
-                                            }
-                                            return (
-                                              <div key={key} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                                <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>{key}</span>
-                                                <span style={{ fontSize: '0.75rem', color: '#FFF', fontWeight: 500 }}>{val}</span>
-                                              </div>
-                                            )
-                                          })}
-                                        </div>
-                                      </div>
-                                    )}
-                                  </div>
-                                ))
+                                <button className="btn-ghost" style={{ padding: '0.3rem 0.8rem', fontSize: '0.7rem', color: 'var(--accent-steel)', borderColor: 'var(--accent-steel)' }}>+ WATCHLIST</button>
                               )}
                             </div>
                           </div>
+
+                          {/* 2. Operations (Split Middle) */}
+                          <div className="card-middle-split">
+                            <div className="strip-analytics">
+                              <div className="stat-row">
+                                <span className="stat-label">Hires</span>
+                                <span className="stat-value" style={{ color: statHires > 0 ? 'var(--text-muted)' : 'inherit' }}>{statHires}</span>
+                              </div>
+                              <div className="stat-row">
+                                <span className="stat-label">Exits</span>
+                                <span className="stat-value" style={{ color: statExits > 0 ? '#D97706' : 'inherit' }}>{statExits}</span>
+                              </div>
+                              <div className="stat-row">
+                                <span className="stat-label">New Appts</span>
+                                <span className="stat-value" style={{ color: statNewAppts > 0 ? 'var(--text-muted)' : 'inherit' }}>{statNewAppts}</span>
+                              </div>
+                              <div className="stat-row">
+                                <span className="stat-label">Lost Appts</span>
+                                <span className="stat-value" style={{ color: statLostAppts > 0 ? 'var(--accent-red)' : 'inherit' }}>{statLostAppts}</span>
+                              </div>
+                            </div>
+
+                            <div className="strip-content" style={{ paddingLeft: '1.5rem', flex: 1 }}>
+                              <div className="intelligence-strip-ticker" style={{ padding: 0 }}>
+                                {feed.length === 0 ? (
+                                  <span style={{ color: 'var(--text-muted)' }}>No recent activity detected in the last 30 days.</span>
+                                ) : (
+                                  feed.map((item, idx) => (
+                                    <div key={idx} style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                                      <div
+                                        className={`ticker-event ${expandedEvent[agencyName] === idx ? 'active' : ''}`}
+                                        onClick={() => setExpandedEvent(prev => ({ ...prev, [agencyName]: prev[agencyName] === idx ? null : idx }))}
+                                        style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+                                      >
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.8rem' }}>
+                                          <span className={`badge badge-${item.type}`}>{item.badge.toUpperCase()}</span>
+                                          <span className="ticker-subject">{item.subject}</span>
+                                        </div>
+                                        {item.role && (
+                                          <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', letterSpacing: '0.5px' }}>
+                                            {item.role.toUpperCase()}
+                                          </span>
+                                        )}
+                                      </div>
+                                      {expandedEvent[agencyName] === idx && (
+                                        <div className="ticker-inline-drawer">
+                                          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '0.3rem' }}>
+                                            <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', letterSpacing: '0.5px' }}>EVENT DETAILS</span>
+                                            <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>{new Date(item.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}</span>
+                                          </div>
+                                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+                                            {Object.entries(item.details).map(([key, val]) => {
+                                              if (val && val.type === 'nested_list') {
+                                                const nestedKey = `${agencyName}-${idx}-${key}`
+                                                return (
+                                                  <div key={key} style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', borderTop: '1px dashed rgba(255,255,255,0.1)', paddingTop: '0.4rem', marginTop: '0.2rem' }}>
+                                                    <div
+                                                      style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}
+                                                      onClick={() => setExpandedNested(prev => ({ ...prev, [nestedKey]: !prev[nestedKey] }))}
+                                                    >
+                                                      <span style={{ fontSize: '0.7rem', color: 'var(--accent-blue)' }}>{key} <span style={{ fontSize: '0.55rem' }}>{expandedNested[nestedKey] ? '▲' : '▼'}</span></span>
+                                                      <span style={{ fontSize: '0.75rem', color: '#FFF', fontWeight: 500 }}>{val.label}</span>
+                                                    </div>
+                                                    {expandedNested[nestedKey] && (
+                                                      <div style={{ background: 'rgba(0,0,0,0.3)', padding: '0.5rem', borderRadius: '4px', maxHeight: '100px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.3rem', border: '1px solid rgba(255,255,255,0.05)' }}>
+                                                        {val.items.map((prod, i) => (
+                                                          <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.65rem' }}>
+                                                            <span style={{ color: '#FFF' }}>{prod.name}</span>
+                                                            <span style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>{prod.npn}</span>
+                                                          </div>
+                                                        ))}
+                                                      </div>
+                                                    )}
+                                                  </div>
+                                                )
+                                              }
+                                              return (
+                                                <div key={key} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                  <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>{key}</span>
+                                                  <span style={{ fontSize: '0.75rem', color: '#FFF', fontWeight: 500 }}>{val}</span>
+                                                </div>
+                                              )
+                                            })}
+                                          </div>
+                                        </div>
+                                      )}
+                                    </div>
+                                  ))
+                                )}
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* 3. Footnote (Bottom-Span) */}
+                          {data.threat_context?.length > 0 && (
+                            <div style={{ borderTop: '1px solid rgba(255, 42, 85, 0.2)', display: 'flex', flexDirection: 'column' }}>
+                              <div 
+                                style={{ 
+                                  padding: '0.6rem 1.5rem', 
+                                  cursor: 'pointer', 
+                                  background: expandedContext[agencyName] ? 'rgba(255, 42, 85, 0.05)' : 'rgba(255, 255, 255, 0.01)',
+                                  display: 'flex',
+                                  justifyContent: 'flex-start',
+                                  gap: '2rem',
+                                  alignItems: 'center',
+                                  fontFamily: 'var(--font-mono)',
+                                  fontSize: '0.7rem',
+                                  color: 'var(--text-muted)',
+                                  transition: 'background 0.2s'
+                                }}
+                                onClick={() => setExpandedContext(prev => ({ ...prev, [agencyName]: !prev[agencyName] }))}
+                              >
+                                <span style={{ color: 'var(--accent-red)', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '0.8rem' }}>
+                                  <span>⚠ THREAT CONTEXT</span>
+                                  <span style={{ color: 'var(--text-muted)', fontSize: '0.6rem', fontWeight: 'normal', border: '1px solid rgba(255,255,255,0.1)', padding: '0.1rem 0.4rem', borderRadius: '4px', letterSpacing: '0.5px' }}>
+                                    OVERLAP SCORE: {Math.min(99, 45 + (data.threat_context.length * 8))}%
+                                  </span>
+                                </span>
+                                <span style={{ color: 'var(--accent-steel)', opacity: 0.8 }}>{expandedContext[agencyName] ? '▲ HIDE OVERLAP' : '▼ VIEW CARRIERS'}</span>
+                              </div>
+                              <div className={`card-footnote-drawer ${expandedContext[agencyName] ? 'open' : ''}`}>
+                                <div className="card-footnote" style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', alignItems: 'center' }}>
+                                  <span style={{ marginRight: '0.3rem', color: 'var(--text-muted)' }}>Direct competitor for:</span>
+                                  {data.threat_context.map((carrier, cIdx) => (
+                                    <span key={cIdx} className="carrier-pill">{carrier}</span>
+                                  ))}
+                                </div>
+                              </div>
+                            </div>
+                          )}
+
                         </div>
                       )
                     })}

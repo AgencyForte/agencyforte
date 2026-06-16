@@ -261,10 +261,10 @@ input:checked+.slider:before {
 }
 
 .nav-card.active {
-    background: linear-gradient(135deg, rgba(46, 213, 115, 0.08) 0%, transparent 100%);
-    border: 1px solid rgba(46, 213, 115, 0.3);
-    border-left: 3px solid var(--accent-green);
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4), inset 0 0 15px rgba(46, 213, 115, 0.05);
+    background: linear-gradient(135deg, rgba(71, 85, 105, 0.15) 0%, transparent 100%);
+    border: 1px solid rgba(71, 85, 105, 0.4);
+    border-left: 3px solid var(--accent-steel);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4), inset 0 0 15px rgba(71, 85, 105, 0.1);
 }
 
 .nav-card-header {
@@ -281,7 +281,7 @@ input:checked+.slider:before {
 }
 
 .nav-card.active .nav-card-icon {
-    color: var(--accent-green);
+    color: var(--accent-steel);
 }
 
 .nav-card-icon svg {
@@ -310,5 +310,5 @@ input:checked+.slider:before {
 }
 
 .nav-card.active .nav-card-metric {
-    color: var(--accent-green);
+    color: var(--accent-steel);
 }
