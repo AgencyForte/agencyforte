@@ -9,7 +9,7 @@ function App() {
   return (
     <Routes>
       {/* Routes without the persistent layout (e.g. Landing) */}
-      <Route path="/" element={<Landing />} />
+      <Route path="/" element={<Onboarding />} />
       <Route path="/login" element={<Login />} />
       <Route path="/onboarding" element={<Onboarding />} />
       

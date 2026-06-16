@@ -13,13 +13,13 @@
     /* Tactical Accents (Muted Enterprise) */
     --accent-red: #E11D48;
     /* Crimson */
-    --accent-green: #10B981;
+    --accent-steel: #475569; /* Tactical Amber */
     /* Emerald */
     --accent-blue: #2563EB;
 
     /* Gradients */
     --grad-text: linear-gradient(135deg, #FFFFFF 0%, #A0AEC0 100%);
-    --grad-accent: linear-gradient(135deg, #10B981 0%, #059669 100%);
+    --grad-accent: linear-gradient(135deg, #64748B 0%, #475569 100%);
 
     /* Typography */
     --font-heading: 'Outfit', sans-serif;
@@ -75,7 +75,7 @@ h2 {
 }
 
 .highlight-text {
-    color: var(--accent-green);
+    color: var(--accent-steel);
 }
 
 .text-center {
@@ -183,9 +183,9 @@ nav a:not([class*="btn"]):hover {
 .btn-primary,
 .btn-primary-small,
 .btn-primary-full {
-    background: var(--accent-green);
+    background: var(--accent-steel);
     color: #FFF;
-    border-radius: 4px;
+    border-radius: 6px;
     text-decoration: none;
     font-weight: 600;
     font-family: var(--font-body);
@@ -216,7 +216,7 @@ nav a:not([class*="btn"]):hover {
 .btn-primary:hover,
 .btn-primary-small:hover,
 .btn-primary-full:hover {
-    background: #059669;
+    background: #334155; /* Darker amber for hover */
 }
 
 .btn-ghost,
@@ -315,7 +315,7 @@ section {
 .indicator {
     width: 8px;
     height: 8px;
-    background-color: var(--accent-green);
+    background-color: var(--accent-steel);
     border-radius: 50%;
 }
 
@@ -429,7 +429,7 @@ section {
 
 .status-indicator {
     font-family: var(--font-mono);
-    color: var(--accent-green);
+    color: var(--accent-steel);
     font-size: 0.75rem;
     text-transform: uppercase;
     letter-spacing: 1px;
@@ -475,7 +475,7 @@ section {
 }
 
 .alert-green {
-    color: var(--accent-green);
+    color: var(--accent-steel);
     font-weight: bold;
     text-shadow: 0 0 10px rgba(0, 255, 102, 0.5);
 }
@@ -542,7 +542,7 @@ section {
     left: 0;
     width: 0%;
     height: 2px;
-    background: var(--accent-green);
+    background: var(--accent-steel);
     transition: width 0.4s ease;
 }
 
@@ -611,7 +611,7 @@ section {
 
 .feature-list li::before {
     content: '✓';
-    color: var(--accent-green);
+    color: var(--accent-steel);
     font-weight: bold;
 }
 
@@ -625,7 +625,7 @@ section {
     position: absolute;
     top: 0;
     right: 2rem;
-    background: var(--accent-green);
+    background: var(--accent-steel);
     color: #000;
     padding: 0.3rem 1rem;
     border-radius: 0 0 6px 6px;
@@ -652,7 +652,7 @@ section {
     left: 0;
     width: 100%;
     height: 1px;
-    background: linear-gradient(90deg, transparent, var(--accent-green), transparent);
+    background: linear-gradient(90deg, transparent, var(--accent-steel), transparent);
 }
 
 .cta-glass-box p {
@@ -765,12 +765,12 @@ footer {
 }
 
 .movement-row.hire .value {
-    color: var(--accent-green);
+    color: var(--accent-steel);
     font-weight: bold;
 }
 
 .movement-row.appt .value {
-    color: var(--accent-green);
+    color: var(--accent-steel);
     font-weight: bold;
 }
 
