@@ -17,19 +17,21 @@ export default function Login() {
 
     try {
       if (isSignUp) {
-        const { error } = await supabase.auth.signUp({
+        const { error } = await supabase.from('users').insert({
           email,
-          password,
+          password_hash: password // Insecure for prod, fine for demo MVP
         })
         if (error) throw error
-        alert('Registration successful! Please check your email for verification.')
+        navigate('/onboarding', { state: { email } })
       } else {
-        const { error } = await supabase.auth.signInWithPassword({
-          email,
-          password,
-        })
-        if (error) throw error
-        navigate('/onboarding')
+        const { data, error } = await supabase.from('users').select('*').eq('email', email).single()
+        if (error || !data) throw new Error("Invalid access credentials.")
+        
+        if (data.home_agency_id) {
+          navigate('/dashboard')
+        } else {
+          navigate('/onboarding', { state: { email } })
+        }
       }
     } catch (error) {
       setError(error.message)

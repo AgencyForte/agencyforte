@@ -9,8 +9,18 @@ import requests
 # Phase 2: The 24-Hour Polars Diff
 # ==========================================
 
-SUPABASE_URL = os.environ.get("SUPABASE_URL")
-SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
+# --- LOCAL DEV SUPPORT ---
+# Attempt to load .env.local if running locally
+for env_path in ["../.env.local", ".env.local"]:
+    if os.path.exists(env_path):
+        with open(env_path) as f:
+            for line in f:
+                if line.strip() and not line.startswith("#") and "=" in line:
+                    k, v = line.strip().split("=", 1)
+                    os.environ[k] = v.strip("'\"")
+
+SUPABASE_URL = os.environ.get("SUPABASE_URL") or os.environ.get("VITE_SUPABASE_URL")
+SUPABASE_KEY = os.environ.get("SUPABASE_KEY") or os.environ.get("VITE_SUPABASE_ANON_KEY")
 TDI_CSV_URL = "https://data.texas.gov/api/views/avjc-7u2m/rows.csv?accessType=DOWNLOAD"
 
 def get_headers():
@@ -166,7 +176,13 @@ def main():
 
     # --- STEP 4: GENERATE AND PUSH ALERTS ---
     print("[4/5] Generating tactical alerts and pushing to Supabase...")
-    alerts = generate_alerts(dropped_df, added_df)
+    
+    # Do NOT generate 600k false alerts on Day 1!
+    if not os.path.exists("yesterday_tdi.csv") or yesterday_df.is_empty():
+        print("      Day 1 Baseline Detected: Skipping alert generation. Only directory will be built.")
+        alerts = []
+    else:
+        alerts = generate_alerts(dropped_df, added_df)
     
     if alerts:
         try:
@@ -197,17 +213,19 @@ def main():
         dir_df = dir_df.filter(pl.col("agency_name").is_not_null() & (pl.col("agency_name") != ""))
         
         # Delete old directory in Supabase
+        print("      Deleting old directory...")
         del_res = requests.delete(f"{SUPABASE_URL}/rest/v1/agency_directory?agency_name=neq.0000", headers=get_headers())
         del_res.raise_for_status()
 
         # Push new directory in chunks
         dir_dicts = dir_df.to_dicts()
-        chunk_size = 1000
+        chunk_size = 100
+        print(f"      Pushing {len(dir_dicts)} agencies in chunks of {chunk_size}...")
         for i in range(0, len(dir_dicts), chunk_size):
             chunk = dir_dicts[i:i + chunk_size]
             post_res = requests.post(f"{SUPABASE_URL}/rest/v1/agency_directory", json=chunk, headers=get_headers())
             post_res.raise_for_status()
-            time.sleep(0.5)
+            time.sleep(0.1)
             
         print(f"      Successfully pushed {len(dir_dicts)} unique agencies to directory.")
 
