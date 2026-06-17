@@ -682,7 +682,11 @@ export default function Dashboard() {
 
         <div className="nav-group" style={{ marginTop: 'auto' }}>
           <nav className="sidebar-nav">
-            <button className="stealth-toggle" style={{ width: '90%', justifyContent: 'flex-start', margin: '0.3rem 0', padding: '0.4rem 0.8rem' }}>
+            <button 
+              className={`stealth-toggle ${activeTab === 'account' ? 'active' : ''}`}
+              onClick={() => setActiveTab('account')}
+              style={{ width: '90%', justifyContent: 'flex-start', margin: '0.3rem 0', padding: '0.4rem 0.8rem' }}
+            >
               <span className="toggle-indicator"></span>
               ACCOUNT
             </button>
@@ -1171,6 +1175,159 @@ export default function Dashboard() {
                 </div>
               )
 
+            )}
+
+            {activeTab === 'account' && (
+              <div className="account-container" style={{ animation: 'fade-in 0.3s ease-out' }}>
+                {/* 1. Operative Dossier (Header) */}
+                <div className="command-console" style={{ marginBottom: '2rem' }}>
+                  <div className="console-header" style={{ display: 'flex', justifyContent: 'flex-start', alignItems: 'center', padding: '0.8rem 1.5rem', background: 'rgba(10, 14, 23, 0.95)' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                      <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.65rem', color: 'var(--text-muted)', letterSpacing: '2px' }}>OPERATIVE IDENTIFICATION</span>
+                      <span style={{ fontSize: '1.2rem', fontWeight: 'bold', color: '#FFF', fontFamily: 'var(--font-heading)' }}>PAPA TASI // AGENCY FORTE ADMIN</span>
+                    </div>
+                    <div style={{ marginLeft: 'auto', display: 'flex', gap: '2rem', flexWrap: 'wrap' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', alignItems: 'flex-end' }}>
+                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.65rem', color: 'var(--text-muted)', letterSpacing: '2px' }}>CURRENT AUTHORIZATION</span>
+                        <span style={{ fontSize: '0.9rem', fontWeight: 'bold', color: 'var(--accent-blue)', fontFamily: 'var(--font-heading)' }}>[ EVALUATION TIER ]</span>
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', alignItems: 'flex-end' }}>
+                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.65rem', color: 'var(--text-muted)', letterSpacing: '2px' }}>STATUS</span>
+                        <span style={{ fontSize: '0.9rem', fontWeight: 'bold', color: 'var(--accent-green)', fontFamily: 'var(--font-heading)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <span style={{ display: 'inline-block', width: '6px', height: '6px', borderRadius: '50%', background: 'var(--accent-green)', boxShadow: '0 0 8px var(--accent-green)' }}></span>
+                          ONLINE
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 2. Clearance Tiers */}
+                <div style={{ marginBottom: '1.5rem' }}>
+                  <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.75rem', color: 'var(--text-muted)', letterSpacing: '2px', marginBottom: '1rem', display: 'block' }}>CLEARANCE PROTOCOLS</span>
+                  <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+                    
+                    {/* Tier 1 - Active */}
+                    <div className="clearance-card active" style={{ flex: 1, minWidth: '240px', border: '1px solid var(--border-subtle)', background: 'rgba(56, 189, 248, 0.03)', padding: '1.2rem', borderRadius: '4px', position: 'relative', overflow: 'hidden' }}>
+                      <div style={{ position: 'absolute', top: 0, left: 0, width: '3px', height: '100%', background: 'var(--accent-blue)', boxShadow: '0 0 8px var(--accent-blue)' }}></div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem' }}>
+                        <div>
+                          <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.6rem', color: 'var(--accent-blue)', letterSpacing: '2px', display: 'block', marginBottom: '0.3rem' }}>TIER I</span>
+                          <h3 style={{ fontSize: '1.2rem', color: '#FFF', margin: 0, fontFamily: 'var(--font-heading)' }}>LOCAL RECON</h3>
+                        </div>
+                        <span style={{ padding: '0.2rem 0.5rem', border: '1px solid rgba(56, 189, 248, 0.3)', color: 'var(--accent-blue)', fontSize: '0.55rem', fontFamily: 'var(--font-mono)', letterSpacing: '1px', borderRadius: '2px' }}>ACTIVE</span>
+                      </div>
+                      <p style={{ color: 'var(--text-muted)', fontSize: '0.75rem', marginBottom: '1.5rem', lineHeight: 1.5 }}>Tactical system access. Tracks up to 10 local competitor agencies to monitor immediate threats and producer movements.</p>
+                      <div style={{ fontSize: '1.3rem', color: '#FFF', fontWeight: 'bold', fontFamily: 'var(--font-heading)' }}>$249<span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 'normal' }}> / MONTH</span></div>
+                    </div>
+
+                    {/* Tier 2 - Locked */}
+                    <div className="clearance-card locked" style={{ flex: 1, minWidth: '240px', border: '1px solid var(--border-subtle)', background: 'rgba(255, 255, 255, 0.02)', padding: '1.2rem', borderRadius: '4px', position: 'relative' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem' }}>
+                        <div>
+                          <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.6rem', color: 'var(--text-muted)', letterSpacing: '2px', display: 'block', marginBottom: '0.3rem' }}>TIER II</span>
+                          <h3 style={{ fontSize: '1.2rem', color: 'var(--text-muted)', margin: 0, fontFamily: 'var(--font-heading)' }}>METRO COMMAND</h3>
+                        </div>
+                        <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>🔒</span>
+                      </div>
+                      <p style={{ color: 'var(--text-muted)', fontSize: '0.75rem', marginBottom: '1.5rem', lineHeight: 1.5, opacity: 0.7 }}>Strategic system access. Tracks up to 50 competitor agencies across the entire MSA. Hunts for vulnerable targets and mass exoduses.</p>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div style={{ fontSize: '1.3rem', color: 'var(--text-muted)', fontWeight: 'bold', fontFamily: 'var(--font-heading)' }}>$649<span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 'normal' }}> / MONTH</span></div>
+                        <button className="btn-ghost" style={{ padding: '0.3rem 0.8rem', fontSize: '0.65rem' }}>REQUEST AUTHORIZATION</button>
+                      </div>
+                    </div>
+
+                    {/* Tier 3 - Locked */}
+                    <div className="clearance-card locked" style={{ flex: 1, minWidth: '240px', border: '1px solid var(--border-subtle)', background: 'rgba(255, 255, 255, 0.02)', padding: '1.2rem', borderRadius: '4px', position: 'relative' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem' }}>
+                        <div>
+                          <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.6rem', color: 'var(--text-muted)', letterSpacing: '2px', display: 'block', marginBottom: '0.3rem' }}>TIER III</span>
+                          <h3 style={{ fontSize: '1.2rem', color: 'var(--text-muted)', margin: 0, fontFamily: 'var(--font-heading)' }}>STATEWIDE SYNDICATE</h3>
+                        </div>
+                        <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>🔒</span>
+                      </div>
+                      <p style={{ color: 'var(--text-muted)', fontSize: '0.75rem', marginBottom: '1.5rem', lineHeight: 1.5, opacity: 0.7 }}>Unrestricted statewide database access. Track up to 250+ competitor agencies for M&A targeting and talent acquisition.</p>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div style={{ fontSize: '1.3rem', color: 'var(--text-muted)', fontWeight: 'bold', fontFamily: 'var(--font-heading)' }}>$1,299<span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 'normal' }}> / MONTH</span></div>
+                        <button className="btn-ghost" style={{ padding: '0.3rem 0.8rem', fontSize: '0.65rem' }}>REQUEST AUTHORIZATION</button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 3. Bandwidth Metrics & Controls */}
+                <div style={{ display: 'flex', gap: '1.5rem', flexWrap: 'wrap' }}>
+                  
+                  {/* Bandwidth Metrics */}
+                  <div style={{ flex: 2, minWidth: '300px', border: '1px solid var(--border-subtle)', background: 'rgba(10, 14, 23, 0.5)', padding: '1.5rem', borderRadius: '4px' }}>
+                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.75rem', color: 'var(--text-muted)', letterSpacing: '2px', marginBottom: '1.5rem', display: 'block' }}>BANDWIDTH METRICS</span>
+                    
+                    <div style={{ marginBottom: '1.5rem' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem', fontFamily: 'var(--font-mono)', fontSize: '0.75rem' }}>
+                        <span style={{ color: '#FFF' }}>TARGETS ACTIVELY MONITORED</span>
+                        <span style={{ color: 'var(--accent-blue)' }}>8 / 10</span>
+                      </div>
+                      <div style={{ width: '100%', height: '4px', background: 'var(--border-subtle)', borderRadius: '2px', overflow: 'hidden' }}>
+                        <div style={{ width: '80%', height: '100%', background: 'var(--accent-blue)', boxShadow: '0 0 10px var(--accent-blue)' }}></div>
+                      </div>
+                    </div>
+
+                    <div style={{ marginBottom: '1.5rem' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem', fontFamily: 'var(--font-mono)', fontSize: '0.75rem' }}>
+                        <span style={{ color: '#FFF' }}>ANOMALIES DETECTED THIS CYCLE</span>
+                        <span style={{ color: 'var(--accent-green)' }}>1,405</span>
+                      </div>
+                    </div>
+
+                    <div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem', fontFamily: 'var(--font-mono)', fontSize: '0.75rem' }}>
+                        <span style={{ color: '#FFF' }}>SYSTEM UPTIME</span>
+                        <span style={{ color: 'var(--text-muted)' }}>99.99%</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Security & Billing Controls */}
+                  <div style={{ flex: 1, minWidth: '300px', border: '1px solid var(--border-subtle)', background: 'rgba(10, 14, 23, 0.5)', padding: '1.5rem', borderRadius: '4px', display: 'flex', flexDirection: 'column' }}>
+                    <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.75rem', color: 'var(--text-muted)', letterSpacing: '2px', marginBottom: '1.5rem', display: 'block' }}>ENCRYPTED FUNDING SOURCE</span>
+                    
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', background: 'rgba(255,255,255,0.02)', padding: '1rem', borderRadius: '4px', border: '1px solid var(--border-highlight)', marginBottom: '1.5rem' }}>
+                      <div style={{ width: '40px', height: '24px', background: '#1A1F2E', borderRadius: '2px', display: 'flex', justifyContent: 'center', alignItems: 'center', fontSize: '0.6rem', color: '#FFF', fontWeight: 'bold', fontStyle: 'italic', border: '1px solid rgba(255,255,255,0.1)' }}>VISA</div>
+                      <div style={{ display: 'flex', flexDirection: 'column' }}>
+                        <span style={{ color: '#FFF', fontFamily: 'var(--font-mono)', fontSize: '0.85rem', letterSpacing: '1px' }}>•••• •••• •••• 4242</span>
+                        <span style={{ color: 'var(--text-muted)', fontSize: '0.7rem' }}>Expires 12/28</span>
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', gap: '1rem', marginBottom: 'auto' }}>
+                      <button className="btn-ghost" style={{ flex: 1, padding: '0.6rem', fontSize: '0.7rem' }}>UPDATE SOURCE</button>
+                      <button className="btn-ghost" style={{ flex: 1, padding: '0.6rem', fontSize: '0.7rem' }}>VIEW LEDGERS</button>
+                    </div>
+
+                    <div style={{ borderTop: '1px dashed var(--border-subtle)', paddingTop: '1.5rem', marginTop: '2rem' }}>
+                      <button style={{ 
+                        width: '100%', 
+                        background: 'transparent', 
+                        border: '1px solid rgba(153, 27, 27, 0.3)', 
+                        color: 'rgba(255, 255, 255, 0.5)', 
+                        padding: '0.8rem', 
+                        fontFamily: 'var(--font-mono)', 
+                        fontSize: '0.75rem', 
+                        letterSpacing: '1px', 
+                        cursor: 'pointer',
+                        borderRadius: '2px',
+                        transition: 'all 0.2s ease'
+                      }}
+                      onMouseOver={e => { e.currentTarget.style.background = 'rgba(153, 27, 27, 0.1)'; e.currentTarget.style.color = '#FFF'; e.currentTarget.style.borderColor = 'rgba(153, 27, 27, 0.8)'; }}
+                      onMouseOut={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'rgba(255, 255, 255, 0.5)'; e.currentTarget.style.borderColor = 'rgba(153, 27, 27, 0.3)'; }}
+                      >
+                        [ TERMINATE SYSTEM ACCESS ]
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+              </div>
             )}
           </section>
         </div>
