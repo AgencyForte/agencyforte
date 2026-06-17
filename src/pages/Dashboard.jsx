@@ -682,7 +682,7 @@ export default function Dashboard() {
 
         <div className="nav-group" style={{ marginTop: 'auto' }}>
           <nav className="sidebar-nav">
-            <button 
+            <button
               className={`stealth-toggle ${activeTab === 'account' ? 'active' : ''}`}
               onClick={() => setActiveTab('account')}
               style={{ width: '90%', justifyContent: 'flex-start', margin: '0.3rem 0', padding: '0.4rem 0.8rem' }}
@@ -691,9 +691,13 @@ export default function Dashboard() {
               ACCOUNT
             </button>
 
-            <button className="stealth-toggle" style={{ width: '90%', justifyContent: 'flex-start', margin: '0.3rem 0', padding: '0.4rem 0.8rem' }}>
+            <button
+              className={`stealth-toggle ${activeTab === 'provenance' ? 'active' : ''}`}
+              onClick={() => setActiveTab('provenance')}
+              style={{ width: '90%', justifyContent: 'flex-start', margin: '0.3rem 0', padding: '0.4rem 0.8rem' }}
+            >
               <span className="toggle-indicator"></span>
-              SETTINGS
+              DATA PROVENANCE
             </button>
 
             <div style={{ position: 'absolute', bottom: '1rem', width: '100%', display: 'flex', justifyContent: 'center' }}>
@@ -1206,7 +1210,7 @@ export default function Dashboard() {
                 <div style={{ marginBottom: '1.5rem' }}>
                   <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.75rem', color: 'var(--text-muted)', letterSpacing: '2px', marginBottom: '1rem', display: 'block' }}>CLEARANCE PROTOCOLS</span>
                   <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
-                    
+
                     {/* Tier 1 - Active */}
                     <div className="clearance-card active" style={{ flex: 1, minWidth: '240px', border: '1px solid var(--border-subtle)', background: 'rgba(56, 189, 248, 0.03)', padding: '1.2rem', borderRadius: '4px', position: 'relative', overflow: 'hidden' }}>
                       <div style={{ position: 'absolute', top: 0, left: 0, width: '3px', height: '100%', background: 'var(--accent-blue)', boxShadow: '0 0 8px var(--accent-blue)' }}></div>
@@ -1257,11 +1261,11 @@ export default function Dashboard() {
 
                 {/* 3. Bandwidth Metrics & Controls */}
                 <div style={{ display: 'flex', gap: '1.5rem', flexWrap: 'wrap' }}>
-                  
+
                   {/* Bandwidth Metrics */}
                   <div style={{ flex: 2, minWidth: '300px', border: '1px solid var(--border-subtle)', background: 'rgba(10, 14, 23, 0.5)', padding: '1.5rem', borderRadius: '4px' }}>
                     <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.75rem', color: 'var(--text-muted)', letterSpacing: '2px', marginBottom: '1.5rem', display: 'block' }}>BANDWIDTH METRICS</span>
-                    
+
                     <div style={{ marginBottom: '1.5rem' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem', fontFamily: 'var(--font-mono)', fontSize: '0.75rem' }}>
                         <span style={{ color: '#FFF' }}>TARGETS ACTIVELY MONITORED</span>
@@ -1290,7 +1294,7 @@ export default function Dashboard() {
                   {/* Security & Billing Controls */}
                   <div style={{ flex: 1, minWidth: '300px', border: '1px solid var(--border-subtle)', background: 'rgba(10, 14, 23, 0.5)', padding: '1.5rem', borderRadius: '4px', display: 'flex', flexDirection: 'column' }}>
                     <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.75rem', color: 'var(--text-muted)', letterSpacing: '2px', marginBottom: '1.5rem', display: 'block' }}>ENCRYPTED FUNDING SOURCE</span>
-                    
+
                     <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', background: 'rgba(255,255,255,0.02)', padding: '1rem', borderRadius: '4px', border: '1px solid var(--border-highlight)', marginBottom: '1.5rem' }}>
                       <div style={{ width: '40px', height: '24px', background: '#1A1F2E', borderRadius: '2px', display: 'flex', justifyContent: 'center', alignItems: 'center', fontSize: '0.6rem', color: '#FFF', fontWeight: 'bold', fontStyle: 'italic', border: '1px solid rgba(255,255,255,0.1)' }}>VISA</div>
                       <div style={{ display: 'flex', flexDirection: 'column' }}>
@@ -1305,25 +1309,167 @@ export default function Dashboard() {
                     </div>
 
                     <div style={{ borderTop: '1px dashed var(--border-subtle)', paddingTop: '1.5rem', marginTop: '2rem' }}>
-                      <button style={{ 
-                        width: '100%', 
-                        background: 'transparent', 
-                        border: '1px solid rgba(153, 27, 27, 0.3)', 
-                        color: 'rgba(255, 255, 255, 0.5)', 
-                        padding: '0.8rem', 
-                        fontFamily: 'var(--font-mono)', 
-                        fontSize: '0.75rem', 
-                        letterSpacing: '1px', 
+                      <button style={{
+                        width: '100%',
+                        background: 'transparent',
+                        border: '1px solid rgba(153, 27, 27, 0.3)',
+                        color: 'rgba(255, 255, 255, 0.5)',
+                        padding: '0.8rem',
+                        fontFamily: 'var(--font-mono)',
+                        fontSize: '0.75rem',
+                        letterSpacing: '1px',
                         cursor: 'pointer',
                         borderRadius: '2px',
                         transition: 'all 0.2s ease'
                       }}
-                      onMouseOver={e => { e.currentTarget.style.background = 'rgba(153, 27, 27, 0.1)'; e.currentTarget.style.color = '#FFF'; e.currentTarget.style.borderColor = 'rgba(153, 27, 27, 0.8)'; }}
-                      onMouseOut={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'rgba(255, 255, 255, 0.5)'; e.currentTarget.style.borderColor = 'rgba(153, 27, 27, 0.3)'; }}
+                        onMouseOver={e => { e.currentTarget.style.background = 'rgba(153, 27, 27, 0.1)'; e.currentTarget.style.color = '#FFF'; e.currentTarget.style.borderColor = 'rgba(153, 27, 27, 0.8)'; }}
+                        onMouseOut={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'rgba(255, 255, 255, 0.5)'; e.currentTarget.style.borderColor = 'rgba(153, 27, 27, 0.3)'; }}
                       >
                         [ TERMINATE SYSTEM ACCESS ]
                       </button>
                     </div>
+                  </div>
+                </div>
+
+              </div>
+            )}
+
+            {activeTab === 'provenance' && (
+              <div className="provenance-container" style={{ animation: 'fade-in 0.3s ease-out' }}>
+                {/* 1. Global Uplink Status (Header) */}
+                <div className="command-console" style={{ marginBottom: '2rem' }}>
+                  <div className="console-header" style={{ display: 'flex', justifyContent: 'flex-start', alignItems: 'center', padding: '0.8rem 1.5rem', background: 'rgba(10, 14, 23, 0.95)' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                      <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.65rem', color: 'var(--text-muted)', letterSpacing: '2px' }}>SYSTEM UPLINK</span>
+                      <span style={{ fontSize: '1.2rem', fontWeight: 'bold', color: 'var(--accent-green)', fontFamily: 'var(--font-heading)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', background: 'var(--accent-green)', boxShadow: '0 0 10px var(--accent-green)' }}></span>
+                        ACTIVE
+                      </span>
+                    </div>
+                    <div style={{ marginLeft: 'auto', display: 'flex', gap: '3rem', flexWrap: 'wrap' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', alignItems: 'flex-end' }}>
+                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.65rem', color: 'var(--text-muted)', letterSpacing: '2px' }}>TOTAL RECORDS MONITORED</span>
+                        <span style={{ fontSize: '0.9rem', fontWeight: 'bold', color: '#FFF', fontFamily: 'var(--font-mono)' }}>14,204,819</span>
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', alignItems: 'flex-end' }}>
+                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.65rem', color: 'var(--text-muted)', letterSpacing: '2px' }}>LAST GLOBAL SYNC</span>
+                        <span style={{ fontSize: '0.9rem', fontWeight: 'bold', color: 'var(--accent-blue)', fontFamily: 'var(--font-mono)' }}>T-MINUS 14 MINUTES</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 2. Ingestion Pipelines (Data Sources) */}
+                <div style={{ marginBottom: '2rem' }}>
+                  <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.75rem', color: 'var(--text-muted)', letterSpacing: '2px', marginBottom: '1rem', display: 'block' }}>INGESTION PIPELINES</span>
+                  <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+                    
+                    {/* Node 1: NIPR */}
+                    <div style={{ flex: 1, minWidth: '280px', border: '1px solid var(--border-subtle)', background: 'rgba(10, 14, 23, 0.5)', padding: '1.2rem', borderRadius: '4px', position: 'relative', overflow: 'hidden' }}>
+                      <div style={{ position: 'absolute', top: 0, left: 0, width: '3px', height: '100%', background: 'var(--accent-green)', boxShadow: '0 0 8px var(--accent-green)' }}></div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                        <h4 style={{ margin: 0, fontSize: '1rem', color: '#FFF', fontFamily: 'var(--font-heading)' }}>NIPR ENDPOINT</h4>
+                        <span style={{ color: 'var(--accent-green)', fontSize: '0.6rem', fontFamily: 'var(--font-mono)', letterSpacing: '1px', border: '1px solid rgba(16, 185, 129, 0.3)', padding: '0.2rem 0.5rem', borderRadius: '2px' }}>[ SYNCED ]</span>
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', fontFamily: 'var(--font-mono)', fontSize: '0.7rem' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <span style={{ color: 'var(--text-muted)' }}>SOURCE:</span>
+                          <span style={{ color: '#FFF' }}>National Insurance Producer Registry</span>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <span style={{ color: 'var(--text-muted)' }}>PAYLOAD:</span>
+                          <span style={{ color: '#FFF', textAlign: 'right' }}>Producer Licenses, NPNs, LOA</span>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <span style={{ color: 'var(--text-muted)' }}>LATENCY:</span>
+                          <span style={{ color: '#FFF' }}>24 HOURS</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Node 2: State DOI */}
+                    <div style={{ flex: 1, minWidth: '280px', border: '1px solid var(--border-subtle)', background: 'rgba(10, 14, 23, 0.5)', padding: '1.2rem', borderRadius: '4px', position: 'relative', overflow: 'hidden' }}>
+                      <div style={{ position: 'absolute', top: 0, left: 0, width: '3px', height: '100%', background: 'var(--accent-green)', boxShadow: '0 0 8px var(--accent-green)' }}></div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                        <h4 style={{ margin: 0, fontSize: '1rem', color: '#FFF', fontFamily: 'var(--font-heading)' }}>STATE DOI FEED</h4>
+                        <span style={{ color: 'var(--accent-green)', fontSize: '0.6rem', fontFamily: 'var(--font-mono)', letterSpacing: '1px', border: '1px solid rgba(16, 185, 129, 0.3)', padding: '0.2rem 0.5rem', borderRadius: '2px' }}>[ SYNCED ]</span>
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', fontFamily: 'var(--font-mono)', fontSize: '0.7rem' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <span style={{ color: 'var(--text-muted)' }}>SOURCE:</span>
+                          <span style={{ color: '#FFF' }}>Department of Insurance (TDI)</span>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <span style={{ color: 'var(--text-muted)' }}>PAYLOAD:</span>
+                          <span style={{ color: '#FFF', textAlign: 'right' }}>Appointments, Terminations</span>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <span style={{ color: 'var(--text-muted)' }}>LATENCY:</span>
+                          <span style={{ color: '#FFF' }}>48 HOURS</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Node 3: Carrier APIs */}
+                    <div style={{ flex: 1, minWidth: '280px', border: '1px solid var(--border-subtle)', background: 'rgba(10, 14, 23, 0.5)', padding: '1.2rem', borderRadius: '4px', position: 'relative', overflow: 'hidden' }}>
+                      <div style={{ position: 'absolute', top: 0, left: 0, width: '3px', height: '100%', background: '#F59E0B', boxShadow: '0 0 8px #F59E0B' }}></div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                        <h4 style={{ margin: 0, fontSize: '1rem', color: '#FFF', fontFamily: 'var(--font-heading)' }}>CARRIER ENDPOINTS</h4>
+                        <span style={{ color: '#F59E0B', fontSize: '0.6rem', fontFamily: 'var(--font-mono)', letterSpacing: '1px', border: '1px solid rgba(245, 158, 11, 0.3)', padding: '0.2rem 0.5rem', borderRadius: '2px' }}>[ PARTIAL DEGRADATION ]</span>
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', fontFamily: 'var(--font-mono)', fontSize: '0.7rem' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <span style={{ color: 'var(--text-muted)' }}>SOURCE:</span>
+                          <span style={{ color: '#FFF' }}>Public Carrier Networks</span>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <span style={{ color: 'var(--text-muted)' }}>PAYLOAD:</span>
+                          <span style={{ color: '#FFF', textAlign: 'right' }}>M&A Footprints, Regional Capacity</span>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                          <span style={{ color: 'var(--text-muted)' }}>STATUS:</span>
+                          <span style={{ color: '#F59E0B' }}>RE-ROUTING...</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 3. Inference Engine (Confidence Matrix) */}
+                <div>
+                  <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.75rem', color: 'var(--text-muted)', letterSpacing: '2px', marginBottom: '1rem', display: 'block' }}>INFERENCE ENGINE LOGIC</span>
+                  <div style={{ border: '1px solid var(--border-subtle)', background: 'rgba(10, 14, 23, 0.5)', borderRadius: '4px', padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                    
+                    <div style={{ borderBottom: '1px dashed rgba(255,255,255,0.1)', paddingBottom: '1.5rem' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '0.5rem' }}>
+                        <span style={{ color: 'var(--accent-red)', fontFamily: 'var(--font-mono)', fontSize: '0.7rem', padding: '0.2rem 0.5rem', border: '1px solid rgba(255, 42, 85, 0.3)', borderRadius: '2px' }}>EVENT: DEFECTION</span>
+                        <span style={{ color: 'var(--accent-green)', fontFamily: 'var(--font-mono)', fontSize: '0.7rem' }}>CONFIDENCE: HIGH</span>
+                      </div>
+                      <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.8rem', fontFamily: 'var(--font-mono)', lineHeight: 1.6 }}>
+                        Identified when a producer drops &ge; 3 carrier appointments at an Origin Agency and registers identical appointments at a Destination Agency within a 14-day window. If the producer's tenure is &lt; 3 years, the event is classified as low-impact and filtered from the Macro Trends feed.
+                      </p>
+                    </div>
+
+                    <div style={{ borderBottom: '1px dashed rgba(255,255,255,0.1)', paddingBottom: '1.5rem' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '0.5rem' }}>
+                        <span style={{ color: 'var(--accent-blue)', fontFamily: 'var(--font-mono)', fontSize: '0.7rem', padding: '0.2rem 0.5rem', border: '1px solid rgba(56, 189, 248, 0.3)', borderRadius: '2px' }}>EVENT: CARRIER SQUEEZE</span>
+                        <span style={{ color: 'var(--accent-green)', fontFamily: 'var(--font-mono)', fontSize: '0.7rem' }}>CONFIDENCE: VERY HIGH</span>
+                      </div>
+                      <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.8rem', fontFamily: 'var(--font-mono)', lineHeight: 1.6 }}>
+                        Triggered when a single carrier (e.g., Travelers, Safeco) terminates appointments for &ge; 25% of an agency's total producer roster simultaneously. Correlated against regional loss-ratio data to determine if the termination was due to unprofitability or lack of production.
+                      </p>
+                    </div>
+
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '0.5rem' }}>
+                        <span style={{ color: 'var(--text-main)', fontFamily: 'var(--font-mono)', fontSize: '0.7rem', padding: '0.2rem 0.5rem', border: '1px solid rgba(255, 255, 255, 0.3)', borderRadius: '2px' }}>EVENT: M&A ACQUISITION</span>
+                        <span style={{ color: '#F59E0B', fontFamily: 'var(--font-mono)', fontSize: '0.7rem' }}>CONFIDENCE: MODERATE</span>
+                      </div>
+                      <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.8rem', fontFamily: 'var(--font-mono)', lineHeight: 1.6 }}>
+                        Inferred when an independent agency transfers 100% of its active producer licenses to a national top-100 aggregator (e.g., Acrisure, Hub International) within a 48-hour window. Awaiting confirmation via carrier network endpoints to upgrade confidence level.
+                      </p>
+                    </div>
+
                   </div>
                 </div>
 
