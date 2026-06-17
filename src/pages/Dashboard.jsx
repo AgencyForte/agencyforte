@@ -376,14 +376,14 @@ export default function Dashboard() {
     if (!macroTrends) return []
     const feed = []
     const seenAgencies = new Set();
-    
+
     // Helper to format ±20% confidence band
     const formatExposure = (val) => {
       const lower = formatCurrency(val * 0.8);
       const upper = formatCurrency(val * 1.2);
       return `${lower} – ${upper}`;
     };
-    
+
     // Helper to format line labels
     const formatLineLabel = (line) => {
       const map = {
@@ -402,7 +402,7 @@ export default function Dashboard() {
       const formattedLines = rawLines.map(formatLineLabel);
       return formattedLines.length > 0 ? formattedLines.join(' & ') : 'Commercial P&C';
     };
-    
+
     // Helper to get MSA
     const getMsa = (ag) => ag.msa ? ag.msa.split('-')[0].split(',')[0] : 'Texas';
 
@@ -423,15 +423,15 @@ export default function Dashboard() {
             }
           }
         });
-        
+
         const msa = getMsa(ag);
         const lines = getLines(ag.hire);
-        
+
         if (isLiftOut) {
-          feed.push({ 
-            type: 'COMPETITIVE OPPORTUNITY', 
+          feed.push({
+            type: 'COMPETITIVE OPPORTUNITY',
             agencyName: ag.name,
-            fact: `${ag.name} hired ${sourceCounts[liftOutSource]} producers specializing in ${lines} from ${liftOutSource} in the ${msa} metro.`, 
+            fact: `${ag.name} hired ${sourceCounts[liftOutSource]} producers specializing in ${lines} from ${liftOutSource} in the ${msa} metro.`,
             why: `Competitor sales capacity may be increasing in a line where account competition is relationship-driven and specialized expertise matters.`,
             exposure: `Estimated enterprise book value added: ${formatExposure(totalEBV)}.`,
             play: `Audit top 20 shared accounts with ${liftOutSource} and deploy immediate BOR defenses in ${msa}.`,
@@ -439,10 +439,10 @@ export default function Dashboard() {
             color: '#475569' // Slate
           })
         } else {
-          feed.push({ 
-            type: 'COMPETITIVE OPPORTUNITY', 
+          feed.push({
+            type: 'COMPETITIVE OPPORTUNITY',
             agencyName: ag.name,
-            fact: `${ag.name} added ${ag.hire.length} producer(s) specializing in ${lines} in the ${msa} metro.`, 
+            fact: `${ag.name} added ${ag.hire.length} producer(s) specializing in ${lines} in the ${msa} metro.`,
             why: `Competitor sales capacity may be increasing in a line where account competition is relationship-driven and specialized expertise matters.`,
             exposure: `Estimated enterprise book value added: ${formatExposure(totalEBV)}.`,
             play: `Review nearby accounts for renewal vulnerability and confirm servicing ownership.`,
@@ -455,11 +455,11 @@ export default function Dashboard() {
     if (selectedEvent === 'All Events' || selectedEvent === 'Producer Exits' || selectedEvent === 'Whale Migrations') {
       // Process topUnstable and topWhales together to deduplicate
       const combinedRiskAgencies = [...new Set([...macroTrends.topUnstable, ...macroTrends.topWhales])];
-      
+
       combinedRiskAgencies.forEach(ag => {
         if (seenAgencies.has(ag.name)) return;
         seenAgencies.add(ag.name);
-        
+
         let totalEBV = 0;
         let seniorCount = 0;
         ag.defection.forEach(d => {
@@ -469,14 +469,14 @@ export default function Dashboard() {
         const arr = totalEBV * 0.12;
         const msa = getMsa(ag);
         const lines = getLines(ag.defection);
-        
+
         let factText = `${ag.name} lost ${ag.defection.length} producer(s) in the ${msa} metro.`;
         if (seniorCount > 0) factText = `${ag.name} lost ${ag.defection.length} producer(s) in the ${msa} metro, including ${seniorCount} specializing in ${lines}.`;
 
-        feed.push({ 
-          type: 'RETENTION RISK', 
+        feed.push({
+          type: 'RETENTION RISK',
           agencyName: ag.name,
-          fact: factText, 
+          fact: factText,
           why: `Producer-led accounts in ${lines} may be more vulnerable to remarketing or competitor outreach during the transition period.`,
           exposure: `Estimated book exposure: ${formatExposure(totalEBV)}. Estimated annualized revenue exposure: ${formatExposure(arr)}.`,
           play: `Assign ${lines} prospects in ${msa} to your top producer within 48 hours.`,
@@ -487,18 +487,18 @@ export default function Dashboard() {
 
       macroTrends.topFlightRisks.forEach(ag => {
         if (!ag.jit || ag.jit.length === 0) return;
-        
+
         const carrierSet = new Set(ag.jit.map(j => j.carrier?.carrier_name).filter(Boolean));
         const carrierNames = [...carrierSet].slice(0, 2).join(' and ');
         const carrierText = carrierSet.size > 2 ? `${carrierNames} and others` : carrierNames;
-        
+
         let factText = `Producers affiliated with ${ag.name} obtained ${ag.jit.length} direct carrier appointments.`;
         if (carrierNames) factText = `Producers affiliated with ${ag.name} obtained ${ag.jit.length} direct appointments, including new relationships with ${carrierText}.`;
 
-        feed.push({ 
-          type: 'PRODUCER MOVEMENT', 
+        feed.push({
+          type: 'PRODUCER MOVEMENT',
           agencyName: ag.name,
-          fact: factText, 
+          fact: factText,
           why: `A cluster of new appointments often indicates a platform transition, mass affiliation change, or preparation for a team lift-out.`,
           exposure: `No direct revenue estimate available from public data.`,
           play: `Add the agency to watchlist and review competitor strength in affected commercial lines.`,
@@ -509,10 +509,10 @@ export default function Dashboard() {
     }
     if (selectedEvent === 'All Events' || selectedEvent === 'Carrier Terminations') {
       macroTrends.topCarriers.forEach(c => {
-        feed.push({ 
-          type: 'CARRIER RELATIONSHIP CHANGE', 
+        feed.push({
+          type: 'CARRIER RELATIONSHIP CHANGE',
           agencyName: c.name,
-          fact: `${c.name} terminated ${c.count} appointment(s) affecting the ${selectedRegion === 'All Texas' ? 'Texas' : selectedRegion} market.`, 
+          fact: `${c.name} terminated ${c.count} appointment(s) affecting the ${selectedRegion === 'All Texas' ? 'Texas' : selectedRegion} market.`,
           why: `If tied to an agency or line with meaningful volume, quoting capacity and carrier access may narrow.`,
           exposure: `Direct revenue impact not observable from public data; market-access risk elevated.`,
           play: `Review accounts that fit your current carrier panel and flag competitors with concentrated placement in the affected market.`,
@@ -523,10 +523,10 @@ export default function Dashboard() {
     }
     if (selectedEvent === 'All Events' || selectedEvent === 'Carrier Appointments') {
       macroTrends.topApptCarriers.forEach(c => {
-        feed.push({ 
-          type: 'CARRIER RELATIONSHIP CHANGE', 
+        feed.push({
+          type: 'CARRIER RELATIONSHIP CHANGE',
           agencyName: c.name,
-          fact: `${c.name} issued ${c.count} new appointment(s) affecting the ${selectedRegion === 'All Texas' ? 'Texas' : selectedRegion} market.`, 
+          fact: `${c.name} issued ${c.count} new appointment(s) affecting the ${selectedRegion === 'All Texas' ? 'Texas' : selectedRegion} market.`,
           why: `Indicates carrier-panel repositioning or territory expansion for affected agencies.`,
           exposure: `Direct revenue impact not observable from public data.`,
           play: `Review target niche overlap; ${c.name} may be authorizing new commercial quoting capacity.`,
@@ -538,10 +538,10 @@ export default function Dashboard() {
 
     // Shuffle the array to look like a real-time chronological feed
     for (let i = feed.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [feed[i], feed[j]] = [feed[j], feed[i]];
+      const j = Math.floor(Math.random() * (i + 1));
+      [feed[i], feed[j]] = [feed[j], feed[i]];
     }
-    
+
     // Add chronological timestamps spanning the last few hours
     const now = new Date()
     feed.forEach((item, index) => {
@@ -707,57 +707,80 @@ export default function Dashboard() {
         <div className="unified-container">
           <section style={{ padding: 0, marginBottom: '4rem' }}>
             {activeTab === 'movements' && (
-              <div style={{ position: 'relative', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', width: '100%', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '0.5rem' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '1rem', fontFamily: 'var(--font-heading)', flexWrap: 'wrap' }}>
-                  <span style={{ color: 'var(--text-muted)', letterSpacing: '1px', fontSize: '0.85rem' }}>TRACKING</span>
+              <div className="command-console">
+                <div className="console-header" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+                  <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.65rem', color: 'var(--text-muted)', letterSpacing: '2px' }}>TRIAL VERSION: <span style={{ color: 'var(--accent-red)' }}>14 DAYS REMAINING</span></span>
+                </div>
 
-                  <div style={{ position: 'relative' }}>
-                    <select
-                      value={selectedEvent}
-                      onChange={e => setSelectedEvent(e.target.value)}
-                      style={{ background: 'transparent', border: 'none', borderBottom: '1px solid var(--accent-blue)', color: '#FFF', outline: 'none', cursor: 'pointer', appearance: 'none', paddingRight: '15px', fontWeight: 'bold', fontSize: '1rem', fontFamily: 'var(--font-heading)' }}
-                    >
-                      <option style={{ background: 'var(--bg-base)' }} value="All Events">ALL EVENTS</option>
-                      <option style={{ background: 'var(--bg-base)' }} value="Producer Hires">PRODUCER HIRES</option>
-                      <option style={{ background: 'var(--bg-base)' }} value="Producer Exits">PRODUCER EXITS</option>
-                      <option style={{ background: 'var(--bg-base)' }} value="Whale Migrations">WHALE MIGRATIONS</option>
-                      <option style={{ background: 'var(--bg-base)' }} value="Carrier Terminations">CARRIER TERMINATIONS</option>
-                      <option style={{ background: 'var(--bg-base)' }} value="Carrier Appointments">CARRIER APPOINTMENTS</option>
-                    </select>
-                    <span style={{ fontSize: '0.6rem', color: 'var(--accent-blue)', position: 'absolute', right: 0, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}>▼</span>
+                <div className="console-body" style={{ display: 'flex', justifyContent: 'flex-start', alignItems: 'flex-end', width: '100%', flexWrap: 'wrap', gap: '3rem' }}>
+
+                  {/* Event Filter */}
+                  <div className="console-section" style={{ position: 'relative' }}>
+                    <span className="section-label">TRACKING</span>
+                    <div style={{ position: 'relative', marginTop: '5px' }}>
+                      <select
+                        value={selectedEvent}
+                        onChange={e => setSelectedEvent(e.target.value)}
+                        style={{ background: 'transparent', border: 'none', borderBottom: 'none', color: '#f1f1f1ff', outline: 'none', cursor: 'pointer', appearance: 'none', paddingRight: '20px', fontWeight: 'bold', fontSize: '0.8rem', fontFamily: 'var(--font-heading)' }}
+                      >
+                        <option style={{ background: 'var(--bg-base)' }} value="All Events">ALL EVENTS</option>
+                        <option style={{ background: 'var(--bg-base)' }} value="Producer Hires">PRODUCER HIRES</option>
+                        <option style={{ background: 'var(--bg-base)' }} value="Producer Exits">PRODUCER EXITS</option>
+                        <option style={{ background: 'var(--bg-base)' }} value="Whale Migrations">WHALE MIGRATIONS</option>
+                        <option style={{ background: 'var(--bg-base)' }} value="Carrier Terminations">CARRIER TERMINATIONS</option>
+                        <option style={{ background: 'var(--bg-base)' }} value="Carrier Appointments">CARRIER APPOINTMENTS</option>
+                      </select>
+                      <span style={{ fontSize: '0.6rem', color: '#f1f1f1ff', position: 'absolute', right: 0, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}>▼</span>
+                    </div>
                   </div>
 
-                  <span style={{ color: 'var(--text-muted)', letterSpacing: '1px', fontSize: '0.85rem', marginLeft: '10px' }}>IN</span>
-
-                  <div style={{ position: 'relative' }}>
-                    <select
-                      value={selectedRegion}
-                      onChange={e => setSelectedRegion(e.target.value)}
-                      style={{ background: 'transparent', border: 'none', borderBottom: '1px solid var(--accent-green)', color: '#FFF', outline: 'none', cursor: 'pointer', appearance: 'none', paddingRight: '15px', fontWeight: 'bold', fontSize: '1rem', fontFamily: 'var(--font-heading)' }}
-                    >
-                      <option style={{ background: 'var(--bg-base)' }} value="All Texas">ALL TEXAS</option>
-                      <option style={{ background: 'var(--bg-base)' }} value="Greater Houston">HOUSTON</option>
-                      <option style={{ background: 'var(--bg-base)' }} value="Dallas-Fort Worth">DALLAS-FORT WORTH</option>
-                      <option style={{ background: 'var(--bg-base)' }} value="Austin">AUSTIN</option>
-                      <option style={{ background: 'var(--bg-base)' }} value="San Antonio">SAN ANTONIO</option>
-                    </select>
-                    <span style={{ fontSize: '0.6rem', color: 'var(--accent-green)', position: 'absolute', right: 0, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}>▼</span>
+                  {/* Region Filter */}
+                  <div className="console-section" style={{ position: 'relative' }}>
+                    <span className="section-label">IN</span>
+                    <div style={{ position: 'relative', marginTop: '5px' }}>
+                      <select
+                        value={selectedRegion}
+                        onChange={e => setSelectedRegion(e.target.value)}
+                        style={{ background: 'transparent', border: 'none', borderBottom: '1px solid var(--accent-green)', color: '#FFF', outline: 'none', cursor: 'pointer', appearance: 'none', paddingRight: '20px', fontWeight: 'bold', fontSize: '0.8rem', fontFamily: 'var(--font-heading)' }}
+                      >
+                        <option style={{ background: 'var(--bg-base)' }} value="All Texas">ALL TEXAS</option>
+                        <option style={{ background: 'var(--bg-base)' }} value="Greater Houston">HOUSTON</option>
+                        <option style={{ background: 'var(--bg-base)' }} value="Dallas-Fort Worth">DALLAS-FORT WORTH</option>
+                        <option style={{ background: 'var(--bg-base)' }} value="Austin">AUSTIN</option>
+                        <option style={{ background: 'var(--bg-base)' }} value="San Antonio">SAN ANTONIO</option>
+                      </select>
+                      <span style={{ fontSize: '0.6rem', color: 'var(--accent-green)', position: 'absolute', right: 0, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}>▼</span>
+                    </div>
                   </div>
 
-                  <span style={{ color: 'var(--text-muted)', letterSpacing: '1px', fontSize: '0.85rem', marginLeft: '10px' }}>OVER THE LAST</span>
-
-                  <div style={{ position: 'relative' }}>
-                    <select
-                      value={timeFilter}
-                      onChange={e => setTimeFilter(e.target.value)}
-                      style={{ background: 'transparent', border: 'none', borderBottom: '1px solid var(--text-main)', color: '#FFF', outline: 'none', cursor: 'pointer', appearance: 'none', paddingRight: '15px', fontWeight: 'bold', fontSize: '1rem', fontFamily: 'var(--font-heading)' }}
+                  {/* Time Filter */}
+                  <div className="console-section" style={{ position: 'relative' }}>
+                    <span className="section-label">OVER THE LAST</span>
+                    <div
+                      onClick={() => setDropdownOpen(!dropdownOpen)}
+                      style={{ marginTop: '5px', display: 'flex', alignItems: 'baseline', gap: '4px', cursor: 'pointer', paddingBottom: '2px', paddingRight: '15px', position: 'relative' }}
                     >
-                      <option style={{ background: 'var(--bg-base)' }} value="30 Days">30 DAYS</option>
-                      <option style={{ background: 'var(--bg-base)' }} value="60 Days">60 DAYS</option>
-                      <option style={{ background: 'var(--bg-base)' }} value="12 Months">12 MONTHS</option>
-                    </select>
-                    <span style={{ fontSize: '0.6rem', color: 'var(--text-main)', position: 'absolute', right: 0, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}>▼</span>
+                      <span style={{ fontSize: '1.4rem', fontWeight: 'bold', color: '#FFF', fontFamily: 'var(--font-heading)' }}>{timeFilter.split(' ')[0]}</span>
+                      <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', textTransform: 'uppercase' }}>{timeFilter.split(' ')[1]}</span>
+                      <span style={{ fontSize: '0.5rem', color: 'var(--text-main)', position: 'absolute', right: 0, top: '50%', transform: 'translateY(-50%)' }}>▼</span>
+                    </div>
+
+                    {dropdownOpen && (
+                      <div style={{ position: 'absolute', top: '100%', left: 0, background: 'rgba(13, 17, 26, 0.95)', border: '1px solid var(--border-highlight)', borderRadius: '4px', padding: '0.5rem 0', zIndex: 100, minWidth: '120px', boxShadow: '0 4px 20px rgba(0,0,0,0.5)', marginTop: '5px' }}>
+                        {['30 Days', '60 Days', '12 Months'].map(t => (
+                          <div
+                            key={t}
+                            onClick={() => { setTimeFilter(t); setDropdownOpen(false); }}
+                            style={{ padding: '0.5rem 1rem', cursor: 'pointer', color: timeFilter === t ? '#FFF' : 'var(--text-muted)', fontFamily: 'var(--font-heading)', fontSize: '0.9rem', display: 'flex', alignItems: 'baseline', gap: '4px' }}
+                          >
+                            <span style={{ fontSize: '1.1rem', fontWeight: 'bold', color: timeFilter === t ? '#FFF' : 'var(--text-muted)' }}>{t.split(' ')[0]}</span>
+                            <span style={{ fontSize: '0.6rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', textTransform: 'uppercase' }}>{t.split(' ')[1]}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
+
                 </div>
               </div>
             )}
@@ -829,7 +852,7 @@ export default function Dashboard() {
             )}
 
             {activeTab === 'movements' && threatFeed && (
-              <div className="threat-feed-container" style={{ borderRadius: '4px', height: '65vh', overflowY: 'auto', marginBottom: '2rem', marginTop: '1.5rem', paddingRight: '10px' }}>
+              <div className="threat-feed-container" style={{ borderRadius: '4px', height: '75vh', overflowY: 'auto', marginBottom: '2rem', marginTop: '1.5rem', paddingRight: '10px', paddingBottom: '3rem' }}>
                 <div style={{ marginBottom: '1.5rem', paddingBottom: '1rem', borderBottom: '1px dashed rgba(255, 255, 255, 0.1)', color: 'var(--text-muted)', fontSize: '0.65rem', letterSpacing: '2px', display: 'flex', justifyContent: 'space-between', fontFamily: 'var(--font-mono)' }}>
                   <span>SYSTEM LOG // MACRO TRENDS ANOMALY DETECTOR</span>
                   <span>STATUS: ACTIVE</span>
@@ -848,23 +871,23 @@ export default function Dashboard() {
                       </div>
                       <div className="event-card-body">
                         <div className="event-row">
-                          <span className="event-label">Fact:</span> 
+                          <span className="event-label">Fact:</span>
                           <span className="event-value">{event.fact}</span>
                         </div>
                         <div className="event-row">
-                          <span className="event-label">Why it matters:</span> 
+                          <span className="event-label">Why it matters:</span>
                           <span className="event-value">{event.why}</span>
                         </div>
                         <div className="event-row">
-                          <span className="event-label">Exposure:</span> 
+                          <span className="event-label">Exposure:</span>
                           <span className="event-value">{event.exposure}</span>
                         </div>
                         <div className="event-row">
-                          <span className="event-label">Recommended play:</span> 
+                          <span className="event-label">Recommended play:</span>
                           <span className="event-value action-value">{event.play}</span>
                         </div>
                         <div className="event-row">
-                          <span className="event-label">Confidence:</span> 
+                          <span className="event-label">Confidence:</span>
                           <span className="event-value" style={{ color: 'var(--text-muted)' }}>{event.confidence}</span>
                         </div>
                       </div>
