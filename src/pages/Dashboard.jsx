@@ -1185,16 +1185,16 @@ export default function Dashboard() {
                   <div className="console-header" style={{ display: 'flex', justifyContent: 'flex-start', alignItems: 'center', padding: '0.8rem 1.5rem', background: 'rgba(10, 14, 23, 0.95)' }}>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
                       <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.65rem', color: 'var(--text-muted)', letterSpacing: '2px' }}>OPERATIVE IDENTIFICATION</span>
-                      <span style={{ fontSize: '1.2rem', fontWeight: 'bold', color: '#FFF', fontFamily: 'var(--font-heading)' }}>PAPA TASI // AGENCY FORTE ADMIN</span>
+                      <span style={{ fontSize: '1rem', fontWeight: 'bold', color: 'var(--text-muted)', fontFamily: 'var(--font-heading)' }}>AGENCY FORTE ADMIN</span>
                     </div>
                     <div style={{ marginLeft: 'auto', display: 'flex', gap: '2rem', flexWrap: 'wrap' }}>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', alignItems: 'flex-end' }}>
                         <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.65rem', color: 'var(--text-muted)', letterSpacing: '2px' }}>CURRENT AUTHORIZATION</span>
-                        <span style={{ fontSize: '0.9rem', fontWeight: 'bold', color: 'var(--accent-blue)', fontFamily: 'var(--font-heading)' }}>[ EVALUATION TIER ]</span>
+                        <span style={{ fontSize: '0.8rem', fontWeight: 'bold', color: 'var(--accent-green)', fontFamily: 'var(--font-heading)' }}> TIER  II </span>
                       </div>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', alignItems: 'flex-end' }}>
                         <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.65rem', color: 'var(--text-muted)', letterSpacing: '2px' }}>STATUS</span>
-                        <span style={{ fontSize: '0.9rem', fontWeight: 'bold', color: 'var(--accent-green)', fontFamily: 'var(--font-heading)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span style={{ fontSize: '0.8rem', fontWeight: 'bold', color: 'var(--accent-green)', fontFamily: 'var(--font-heading)', display: 'flex', alignItems: 'center', gap: '6px' }}>
                           <span style={{ display: 'inline-block', width: '6px', height: '6px', borderRadius: '50%', background: 'var(--accent-green)', boxShadow: '0 0 8px var(--accent-green)' }}></span>
                           ONLINE
                         </span>
@@ -1323,7 +1323,7 @@ export default function Dashboard() {
                         onMouseOver={e => { e.currentTarget.style.background = 'rgba(153, 27, 27, 0.1)'; e.currentTarget.style.color = '#FFF'; e.currentTarget.style.borderColor = 'rgba(153, 27, 27, 0.8)'; }}
                         onMouseOut={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'rgba(255, 255, 255, 0.5)'; e.currentTarget.style.borderColor = 'rgba(153, 27, 27, 0.3)'; }}
                       >
-                        [ TERMINATE SYSTEM ACCESS ]
+                        [ CANCEL SUBSCRIPTION ]
                       </button>
                     </div>
                   </div>
