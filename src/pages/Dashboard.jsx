@@ -651,13 +651,8 @@ export default function Dashboard() {
     <div className="dashboard-layout">
       {/* LEFT SIDEBAR - CARD NAV */}
       <aside className="sidebar">
-        <div style={{ display: 'flex', alignItems: 'center', fontFamily: 'var(--font-heading)', fontSize: '0.9rem', fontWeight: 'bold', color: '#FFF', margin: '0 0 2rem 0', padding: '0 0.5rem', opacity: 0.8 }}>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ marginRight: '6px' }}>
-            <path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="var(--accent-red)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-            <path d="M2 17L12 22L22 17" stroke="var(--accent-red)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-            <path d="M2 12L12 17L22 12" stroke="var(--accent-red)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-          AGENCY<span style={{ color: 'var(--text-main)' }}>FORTE</span>
+        <div style={{ display: 'flex', flexDirection: 'column', fontFamily: 'var(--font-mono)', fontSize: '0.65rem', color: 'var(--accent-steel)', margin: '0 0 2rem 0', padding: '0 0.5rem', opacity: 0.8, letterSpacing: '1px', lineHeight: '1.4' }}>
+          <div style={{ opacity: 0.6, marginTop: '4px' }}>SYS.VER: 4.1.9</div>
         </div>
 
         <div className="nav-group">
