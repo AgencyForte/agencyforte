@@ -271,3 +271,84 @@ input:checked+.slider:before {
     color: #FFF;
     letter-spacing: 1px;
 }
+
+/* Event Cards (Macro Trends Feed) */
+.event-card {
+    background: rgba(13, 17, 26, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 4px;
+    padding: 1.2rem;
+    margin-bottom: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.8rem;
+    position: relative;
+    overflow: hidden;
+}
+
+.event-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 4px;
+    height: 100%;
+    background: var(--event-color, var(--text-muted));
+}
+
+.event-card-header {
+    display: flex;
+    justify-content: flex-start;
+    align-items: center;
+    gap: 1rem;
+    border-bottom: 1px dashed rgba(255, 255, 255, 0.1);
+    padding-bottom: 0.8rem;
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+}
+
+.event-time {
+    color: var(--text-muted);
+}
+
+.event-type {
+    font-weight: bold;
+    letter-spacing: 1px;
+}
+
+.event-agency {
+    color: #FFF;
+}
+
+.event-card-body {
+    display: flex;
+    flex-direction: column;
+    gap: 0.8rem;
+    font-family: var(--font-body);
+    font-size: 0.85rem;
+}
+
+.event-row {
+    display: flex;
+    gap: 0.8rem;
+    line-height: 1.5;
+}
+
+.event-label {
+    color: var(--text-muted);
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    min-width: 140px;
+    margin-top: 2px;
+}
+
+.event-value {
+    color: #FFF;
+    flex: 1;
+}
+
+.action-value {
+    color: var(--accent-blue);
+    font-style: italic;
+}

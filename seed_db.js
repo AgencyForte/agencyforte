@@ -101,7 +101,9 @@ async function seed() {
   const { error: pcaErr } = await supabase.from('producer_carrier_appointments').insert([
     { producer_id: producers[0].id, carrier_id: carriers[0].id, appointment_date: '2024-06-02', status: 'ACTIVE' },
     { producer_id: producers[0].id, carrier_id: carriers[1].id, appointment_date: '2024-06-02', status: 'ACTIVE' },
-    { producer_id: producers[2].id, carrier_id: carriers[3].id, appointment_date: '2024-05-16', status: 'ACTIVE' }
+    { producer_id: producers[2].id, carrier_id: carriers[3].id, appointment_date: '2024-05-16', status: 'ACTIVE' },
+    // JIT Flight Risk Anomaly: Sarah Jenkins gets a stealth appointment while still employed at Higginbotham
+    { producer_id: producers[2].id, carrier_id: carriers[2].id, appointment_date: '2024-06-16', status: 'ACTIVE' }
   ])
   if (pcaErr) throw pcaErr;
 

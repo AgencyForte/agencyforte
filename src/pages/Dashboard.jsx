@@ -17,7 +17,8 @@ export default function Dashboard() {
   const [expandedNested, setExpandedNested] = useState({})
   const [expandedContext, setExpandedContext] = useState({})
 
-  const [selectedRegion, setSelectedRegion] = useState(localStorage.getItem('market_region') || 'All Texas')
+  const initRegion = localStorage.getItem('market_region');
+  const [selectedRegion, setSelectedRegion] = useState((initRegion === 'Houston' ? 'Greater Houston' : initRegion) || 'All Texas')
   const [selectedLOB, setSelectedLOB] = useState(localStorage.getItem('market_lob') || 'All LOBs')
   const [selectedEvent, setSelectedEvent] = useState(localStorage.getItem('market_event') || 'All Events')
   const [selectedCarrier, setSelectedCarrier] = useState(localStorage.getItem('market_carrier') || 'All Carriers')
@@ -87,99 +88,97 @@ export default function Dashboard() {
 
         if (watchlistAgencyIds.length === 0) {
           setWatchlistData({})
-          setLoading(false)
-          return
+        } else {
+          // 3. Fetch Producer Movements affecting these agencies
+          const { data: movements, error: movErr } = await supabase
+            .from('producer_movements')
+            .select(`
+              id, movement_date, movement_type, lines_affected,
+              from_agency_id, to_agency_id,
+              producer:producers(npn, first_name, last_name, original_license_date, active_appointments_count),
+              from_agency:agencies!from_agency_id(agency_name, category),
+              to_agency:agencies!to_agency_id(agency_name, category)
+            `)
+            .or(`from_agency_id.in.(${watchlistAgencyIds.join(',')}),to_agency_id.in.(${watchlistAgencyIds.join(',')})`)
+            .order('movement_date', { ascending: false })
+
+          // 4. Fetch Carrier Events for these agencies
+          const { data: events, error: evErr } = await supabase
+            .from('carrier_events')
+            .select(`
+              id, event_date, event_type, producers_affected_count, notes,
+              agency_id,
+              carrier:carriers(carrier_name)
+            `)
+            .in('agency_id', watchlistAgencyIds)
+            .order('event_date', { ascending: false })
+
+          // 5. Aggregate Watchlist Data with Threat Context
+          const { data: threatData } = await supabase
+            .from('dynamic_competitor_discovery')
+            .select('competitor_agency_id, shared_carrier_names')
+            .eq('base_agency_id', userData.home_agency_id)
+            .in('competitor_agency_id', watchlistAgencyIds)
+
+          const groupedData = {}
+          watchlists.forEach(wl => {
+            const aId = wl.agency.id
+            const aName = wl.agency.agency_name
+            const threat = threatData?.find(t => t.competitor_agency_id === aId)
+
+            groupedData[aName] = {
+              id: aId,
+              total_producers_count: wl.agency.total_producers_count,
+              msa: wl.agency.location?.msa,
+              threat_context: threat?.shared_carrier_names || [],
+              defection: [],
+              hire: [],
+              carrier_loss: [],
+              agency_termination: [],
+              new_appt: []
+            }
+          })
+
+          // Distribute Movements (One movement is an exit for 'from' and a hire for 'to')
+          movements?.forEach(m => {
+            // SIGNAL PURITY: Discard junior producers (< 3 years tenure)
+            const tenureYears = m.producer?.original_license_date
+              ? (new Date() - new Date(m.producer.original_license_date)) / 31536000000
+              : 0;
+            if (tenureYears < 3) return;
+
+            // If the watchlist agency lost the producer
+            if (m.from_agency_id && watchlists.some(w => w.agency_id === m.from_agency_id)) {
+              const aName = m.from_agency.agency_name
+              groupedData[aName].defection.push(m)
+            }
+            // If the watchlist agency gained the producer
+            if (m.to_agency_id && watchlists.some(w => w.agency_id === m.to_agency_id)) {
+              const aName = m.to_agency.agency_name
+              groupedData[aName].hire.push(m)
+            }
+          })
+
+          // Distribute Carrier Events
+          events?.forEach(e => {
+            const aId = e.agency_id
+            const aName = watchlists.find(w => w.agency_id === aId)?.agency.agency_name
+            if (aName) {
+              if (e.event_type === 'APPOINTMENT_LOST') {
+                groupedData[aName].carrier_loss.push(e)
+              } else if (e.event_type === 'MASS_TERMINATION') {
+                groupedData[aName].agency_termination.push(e)
+              } else if (e.event_type === 'APPOINTMENT_GAINED') {
+                groupedData[aName].new_appt.push(e)
+              }
+            }
+          })
+
+          setWatchlistData(groupedData)
         }
 
-        // 3. Fetch Producer Movements affecting these agencies
-        const { data: movements, error: movErr } = await supabase
-          .from('producer_movements')
-          .select(`
-            id, movement_date, movement_type, lines_affected,
-            from_agency_id, to_agency_id,
-            producer:producers(npn, first_name, last_name, original_license_date, active_appointments_count),
-            from_agency:agencies!from_agency_id(agency_name),
-            to_agency:agencies!to_agency_id(agency_name)
-          `)
-          .or(`from_agency_id.in.(${watchlistAgencyIds.join(',')}),to_agency_id.in.(${watchlistAgencyIds.join(',')})`)
-          .order('movement_date', { ascending: false })
-
-        // 4. Fetch Carrier Events for these agencies
-        const { data: events, error: evErr } = await supabase
-          .from('carrier_events')
-          .select(`
-            id, event_date, event_type, producers_affected_count, notes,
-            agency_id,
-            carrier:carriers(carrier_name)
-          `)
-          .in('agency_id', watchlistAgencyIds)
-          .order('event_date', { ascending: false })
-
-        // 5. Aggregate Watchlist Data with Threat Context
-        const { data: threatData } = await supabase
-          .from('dynamic_competitor_discovery')
-          .select('competitor_agency_id, shared_carrier_names')
-          .eq('base_agency_id', userData.home_agency_id)
-          .in('competitor_agency_id', watchlistAgencyIds)
-
-        const groupedData = {}
-        watchlists.forEach(wl => {
-          const aId = wl.agency.id
-          const aName = wl.agency.agency_name
-          const threat = threatData?.find(t => t.competitor_agency_id === aId)
-
-          groupedData[aName] = {
-            id: aId,
-            total_producers_count: wl.agency.total_producers_count,
-            msa: wl.agency.location?.msa,
-            threat_context: threat?.shared_carrier_names || [],
-            defection: [],
-            hire: [],
-            carrier_loss: [],
-            agency_termination: [],
-            new_appt: []
-          }
-        })
-
-        // Distribute Movements (One movement is an exit for 'from' and a hire for 'to')
-        movements?.forEach(m => {
-          // SIGNAL PURITY: Discard junior producers (< 3 years tenure)
-          const tenureYears = m.producer?.original_license_date
-            ? (new Date() - new Date(m.producer.original_license_date)) / 31536000000
-            : 0;
-          if (tenureYears < 3) return;
-
-          // If the watchlist agency lost the producer
-          if (m.from_agency_id && watchlists.some(w => w.agency_id === m.from_agency_id)) {
-            const aName = m.from_agency.agency_name
-            groupedData[aName].defection.push(m)
-          }
-          // If the watchlist agency gained the producer
-          if (m.to_agency_id && watchlists.some(w => w.agency_id === m.to_agency_id)) {
-            const aName = m.to_agency.agency_name
-            groupedData[aName].hire.push(m)
-          }
-        })
-
-        // Distribute Carrier Events
-        events?.forEach(e => {
-          const aId = e.agency_id
-          const aName = watchlists.find(w => w.agency_id === aId)?.agency.agency_name
-          if (aName) {
-            if (e.event_type === 'APPOINTMENT_LOST') {
-              groupedData[aName].carrier_loss.push(e)
-            } else if (e.event_type === 'MASS_TERMINATION') {
-              groupedData[aName].agency_termination.push(e)
-            } else if (e.event_type === 'APPOINTMENT_GAINED') {
-              groupedData[aName].new_appt.push(e)
-            }
-          }
-        })
-
-        setWatchlistData(groupedData)
-
         // 6. Fetch Global Market Movements (For 'Market Movements' Tab)
-        const { data: globalAgencies } = await supabase.from('agencies').select('id, agency_name, total_producers_count, location:locations(msa)').limit(20)
+        const { data: globalAgencies } = await supabase.from('agencies').select('id, agency_name, category, total_producers_count, location:locations(msa)').limit(20)
 
         const globalAgencyIds = globalAgencies?.map(a => a.id) || []
 
@@ -191,8 +190,8 @@ export default function Dashboard() {
             id, movement_date, movement_type, lines_affected,
             from_agency_id, to_agency_id,
             producer:producers(npn, first_name, last_name, original_license_date, active_appointments_count),
-            from_agency:agencies!from_agency_id(agency_name),
-            to_agency:agencies!to_agency_id(agency_name)
+            from_agency:agencies!from_agency_id(agency_name, category),
+            to_agency:agencies!to_agency_id(agency_name, category)
           `)
           .or(`from_agency_id.in.(${quotedIds}),to_agency_id.in.(${quotedIds})`)
           .order('movement_date', { ascending: false })
@@ -211,9 +210,10 @@ export default function Dashboard() {
         globalAgencies?.forEach(ag => {
           globalGrouped[ag.agency_name] = {
             id: ag.id,
+            category: ag.category,
             total_producers_count: ag.total_producers_count,
             msa: ag.location?.msa,
-            defection: [], hire: [], carrier_loss: [], agency_termination: [], new_appt: []
+            defection: [], hire: [], carrier_loss: [], agency_termination: [], new_appt: [], jit: []
           }
         })
 
@@ -240,6 +240,24 @@ export default function Dashboard() {
             if (e.event_type === 'APPOINTMENT_LOST') globalGrouped[aName].carrier_loss.push(e)
             else if (e.event_type === 'MASS_TERMINATION') globalGrouped[aName].agency_termination.push(e)
             else if (e.event_type === 'APPOINTMENT_GAINED') globalGrouped[aName].new_appt.push(e)
+          }
+        })
+
+        const { data: jitAppointments } = await supabase
+          .from('producer_carrier_appointments')
+          .select(`
+            appointment_date,
+            producer:producers(npn, first_name, last_name, current_agency_id),
+            carrier:carriers(carrier_name)
+          `)
+          .order('appointment_date', { ascending: false })
+          .limit(50)
+
+        jitAppointments?.forEach(j => {
+          if (!j.producer?.current_agency_id) return;
+          const aName = globalAgencies?.find(a => a.id === j.producer.current_agency_id)?.agency_name;
+          if (aName && globalGrouped[aName]) {
+            globalGrouped[aName].jit.push(j)
           }
         })
 
@@ -272,6 +290,20 @@ export default function Dashboard() {
     return `${years} Yrs`
   }
 
+  const formatCurrency = (num) => {
+    if (num >= 1000000) return `$${(num / 1000000).toFixed(1)}M`
+    if (num >= 1000) return `$${Math.round(num / 1000)}K`
+    return `$${num}`
+  }
+
+  const calculateEBV = (tenureYears, activeAppointments, agencyCategory) => {
+    if (!tenureYears || tenureYears < 0) return 0;
+    const basePremium = 150000 * Math.pow(tenureYears, 1.1);
+    const apptMultiplier = 1 + ((activeAppointments || 0) * 0.15);
+    const catMultiplier = agencyCategory?.includes('COMMERCIAL') ? 1.8 : 1.0;
+    return basePremium * apptMultiplier * catMultiplier;
+  }
+
   const getTenureYears = (licDate) => {
     if (!licDate) return 0;
     return ((new Date() - new Date(licDate)) / (1000 * 60 * 60 * 24 * 365.25));
@@ -291,13 +323,14 @@ export default function Dashboard() {
     let processedAgencies = agenciesArr.map(ag => {
       let hire = ag.hire;
       let defection = ag.defection;
+      let jit = ag.jit || [];
 
       if (hideJuniorAttrition) {
         hire = hire.filter(e => getTenureYears(e.producer?.original_license_date) >= 3);
         defection = defection.filter(e => getTenureYears(e.producer?.original_license_date) >= 3);
       }
 
-      return { ...ag, hire, defection };
+      return { ...ag, hire, defection, jit };
     });
 
     // Top Expanders (Actionable Hires)
@@ -334,36 +367,172 @@ export default function Dashboard() {
     });
     const topApptCarriers = Object.entries(carrierApptCounts).map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count).slice(0, 10);
 
-    return { topExpanders, topUnstable, topWhales, topCarriers, topApptCarriers };
+    const topFlightRisks = [...processedAgencies].filter(a => a.jit && a.jit.length > 0);
+
+    return { topExpanders, topUnstable, topWhales, topCarriers, topApptCarriers, topFlightRisks };
   }, [marketData, selectedRegion, hideJuniorAttrition]);
 
   const threatFeed = useMemo(() => {
     if (!macroTrends) return []
     const feed = []
+    const seenAgencies = new Set();
     
+    // Helper to format ±20% confidence band
+    const formatExposure = (val) => {
+      const lower = formatCurrency(val * 0.8);
+      const upper = formatCurrency(val * 1.2);
+      return `${lower} – ${upper}`;
+    };
+    
+    // Helper to format line labels
+    const formatLineLabel = (line) => {
+      const map = {
+        'COMMERCIAL_P_C': 'Commercial P&C',
+        'PERSONAL_P_C': 'Personal P&C',
+        'LIFE_HEALTH': 'Life & Health',
+        'BENEFITS': 'Employee Benefits',
+        'SURETY': 'Surety & Bonds'
+      };
+      return map[line] || line.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+    };
+
+    // Helper to get lines
+    const getLines = (arr) => {
+      const rawLines = [...new Set(arr.flatMap(a => a.lines_affected || []))].filter(Boolean);
+      const formattedLines = rawLines.map(formatLineLabel);
+      return formattedLines.length > 0 ? formattedLines.join(' & ') : 'Commercial P&C';
+    };
+    
+    // Helper to get MSA
+    const getMsa = (ag) => ag.msa ? ag.msa.split('-')[0].split(',')[0] : 'Texas';
+
     if (selectedEvent === 'All Events' || selectedEvent === 'Producer Hires') {
       macroTrends.topExpanders.forEach(ag => {
-        feed.push({ type: 'ACQUISITION ANOMALY', text: `TARGET SECURED: ${ag.name.toUpperCase()} ABSORBED +${ag.hire.length} NEW PRODUCERS.`, color: '#2ed573' })
+        let totalEBV = 0;
+        let isLiftOut = false;
+        let liftOutSource = '';
+        const sourceCounts = {};
+
+        ag.hire.forEach(h => {
+          totalEBV += calculateEBV(getTenureYears(h.producer?.original_license_date), h.producer?.active_appointments_count, h.from_agency?.category);
+          if (h.from_agency?.agency_name) {
+            sourceCounts[h.from_agency.agency_name] = (sourceCounts[h.from_agency.agency_name] || 0) + 1;
+            if (sourceCounts[h.from_agency.agency_name] >= 3) {
+              isLiftOut = true;
+              liftOutSource = h.from_agency.agency_name;
+            }
+          }
+        });
+        
+        const msa = getMsa(ag);
+        const lines = getLines(ag.hire);
+        
+        if (isLiftOut) {
+          feed.push({ 
+            type: 'COMPETITIVE OPPORTUNITY', 
+            agencyName: ag.name,
+            fact: `${ag.name} hired ${sourceCounts[liftOutSource]} producers specializing in ${lines} from ${liftOutSource} in the ${msa} metro.`, 
+            why: `Competitor sales capacity may be increasing in a line where account competition is relationship-driven and specialized expertise matters.`,
+            exposure: `Estimated enterprise book value added: ${formatExposure(totalEBV)}.`,
+            play: `Audit top 20 shared accounts with ${liftOutSource} and deploy immediate BOR defenses in ${msa}.`,
+            confidence: `Event verified (High); financial exposure is a modeled estimate (Moderate).`,
+            color: '#475569' // Slate
+          })
+        } else {
+          feed.push({ 
+            type: 'COMPETITIVE OPPORTUNITY', 
+            agencyName: ag.name,
+            fact: `${ag.name} added ${ag.hire.length} producer(s) specializing in ${lines} in the ${msa} metro.`, 
+            why: `Competitor sales capacity may be increasing in a line where account competition is relationship-driven and specialized expertise matters.`,
+            exposure: `Estimated enterprise book value added: ${formatExposure(totalEBV)}.`,
+            play: `Review nearby accounts for renewal vulnerability and confirm servicing ownership.`,
+            confidence: `Event verified (High); financial exposure is a modeled estimate (Moderate).`,
+            color: '#3f6212' // Muted Olive
+          })
+        }
       })
     }
-    if (selectedEvent === 'All Events' || selectedEvent === 'Producer Exits') {
-      macroTrends.topUnstable.forEach(ag => {
-        feed.push({ type: 'SYSTEMIC COLLAPSE', text: `AGENCY EXODUS: ${ag.name.toUpperCase()} BLED -${ag.defection.length} PRODUCERS.`, color: '#ff6b81' })
+    if (selectedEvent === 'All Events' || selectedEvent === 'Producer Exits' || selectedEvent === 'Whale Migrations') {
+      // Process topUnstable and topWhales together to deduplicate
+      const combinedRiskAgencies = [...new Set([...macroTrends.topUnstable, ...macroTrends.topWhales])];
+      
+      combinedRiskAgencies.forEach(ag => {
+        if (seenAgencies.has(ag.name)) return;
+        seenAgencies.add(ag.name);
+        
+        let totalEBV = 0;
+        let seniorCount = 0;
+        ag.defection.forEach(d => {
+          totalEBV += calculateEBV(getTenureYears(d.producer?.original_license_date), d.producer?.active_appointments_count, ag.category);
+          if (getTenureYears(d.producer?.original_license_date) >= 5) seniorCount++;
+        });
+        const arr = totalEBV * 0.12;
+        const msa = getMsa(ag);
+        const lines = getLines(ag.defection);
+        
+        let factText = `${ag.name} lost ${ag.defection.length} producer(s) in the ${msa} metro.`;
+        if (seniorCount > 0) factText = `${ag.name} lost ${ag.defection.length} producer(s) in the ${msa} metro, including ${seniorCount} specializing in ${lines}.`;
+
+        feed.push({ 
+          type: 'RETENTION RISK', 
+          agencyName: ag.name,
+          fact: factText, 
+          why: `Producer-led accounts in ${lines} may be more vulnerable to remarketing or competitor outreach during the transition period.`,
+          exposure: `Estimated book exposure: ${formatExposure(totalEBV)}. Estimated annualized revenue exposure: ${formatExposure(arr)}.`,
+          play: `Assign ${lines} prospects in ${msa} to your top producer within 48 hours.`,
+          confidence: `Event verified (High); financial exposure is a modeled estimate (Moderate).`,
+          color: seniorCount > 0 ? '#7f1d1d' : '#991b1b' // Deep Rust Red
+        })
       })
-    }
-    if (selectedEvent === 'All Events' || selectedEvent === 'Whale Migrations') {
-      macroTrends.topWhales.forEach(ag => {
-        feed.push({ type: 'HIGH-VALUE TARGET', text: `VETERAN DEFECTION: ${ag.name.toUpperCase()} LOST -${ag.defection.length} SENIOR PRODUCERS.`, color: '#a29bfe' })
+
+      macroTrends.topFlightRisks.forEach(ag => {
+        if (!ag.jit || ag.jit.length === 0) return;
+        
+        const carrierSet = new Set(ag.jit.map(j => j.carrier?.carrier_name).filter(Boolean));
+        const carrierNames = [...carrierSet].slice(0, 2).join(' and ');
+        const carrierText = carrierSet.size > 2 ? `${carrierNames} and others` : carrierNames;
+        
+        let factText = `Producers affiliated with ${ag.name} obtained ${ag.jit.length} direct carrier appointments.`;
+        if (carrierNames) factText = `Producers affiliated with ${ag.name} obtained ${ag.jit.length} direct appointments, including new relationships with ${carrierText}.`;
+
+        feed.push({ 
+          type: 'PRODUCER MOVEMENT', 
+          agencyName: ag.name,
+          fact: factText, 
+          why: `A cluster of new appointments often indicates a platform transition, mass affiliation change, or preparation for a team lift-out.`,
+          exposure: `No direct revenue estimate available from public data.`,
+          play: `Add the agency to watchlist and review competitor strength in affected commercial lines.`,
+          confidence: `High; appointment data is authoritative, but reported changes can trail real-world movement.`,
+          color: '#b45309' // Muted Bronze
+        })
       })
     }
     if (selectedEvent === 'All Events' || selectedEvent === 'Carrier Terminations') {
       macroTrends.topCarriers.forEach(c => {
-        feed.push({ type: 'CARRIER VACUUM', text: `PAPER REVOKED: ${c.name.toUpperCase()} EXECUTED ${c.count} TERMINATIONS.`, color: '#ffa502' })
+        feed.push({ 
+          type: 'CARRIER RELATIONSHIP CHANGE', 
+          agencyName: c.name,
+          fact: `${c.name} terminated ${c.count} appointment(s) affecting the ${selectedRegion === 'All Texas' ? 'Texas' : selectedRegion} market.`, 
+          why: `If tied to an agency or line with meaningful volume, quoting capacity and carrier access may narrow.`,
+          exposure: `Direct revenue impact not observable from public data; market-access risk elevated.`,
+          play: `Review accounts that fit your current carrier panel and flag competitors with concentrated placement in the affected market.`,
+          confidence: `High for reported termination; downstream production impact requires monitoring.`,
+          color: '#9a3412' // Burnt Orange
+        })
       })
     }
     if (selectedEvent === 'All Events' || selectedEvent === 'Carrier Appointments') {
       macroTrends.topApptCarriers.forEach(c => {
-        feed.push({ type: 'STRATEGIC ALLIANCE', text: `TERRITORY EXPANSION: ${c.name.toUpperCase()} ISSUED +${c.count} NEW APPOINTMENTS.`, color: '#0abde3' })
+        feed.push({ 
+          type: 'CARRIER RELATIONSHIP CHANGE', 
+          agencyName: c.name,
+          fact: `${c.name} issued ${c.count} new appointment(s) affecting the ${selectedRegion === 'All Texas' ? 'Texas' : selectedRegion} market.`, 
+          why: `Indicates carrier-panel repositioning or territory expansion for affected agencies.`,
+          exposure: `Direct revenue impact not observable from public data.`,
+          play: `Review target niche overlap; ${c.name} may be authorizing new commercial quoting capacity.`,
+          confidence: `High for reported appointment; downstream production impact requires monitoring.`,
+          color: '#1e3a8a' // Deep Navy
+        })
       })
     }
 
@@ -567,7 +736,7 @@ export default function Dashboard() {
                       style={{ background: 'transparent', border: 'none', borderBottom: '1px solid var(--accent-green)', color: '#FFF', outline: 'none', cursor: 'pointer', appearance: 'none', paddingRight: '15px', fontWeight: 'bold', fontSize: '1rem', fontFamily: 'var(--font-heading)' }}
                     >
                       <option style={{ background: 'var(--bg-base)' }} value="All Texas">ALL TEXAS</option>
-                      <option style={{ background: 'var(--bg-base)' }} value="Houston">HOUSTON</option>
+                      <option style={{ background: 'var(--bg-base)' }} value="Greater Houston">HOUSTON</option>
                       <option style={{ background: 'var(--bg-base)' }} value="Dallas-Fort Worth">DALLAS-FORT WORTH</option>
                       <option style={{ background: 'var(--bg-base)' }} value="Austin">AUSTIN</option>
                       <option style={{ background: 'var(--bg-base)' }} value="San Antonio">SAN ANTONIO</option>
@@ -660,19 +829,45 @@ export default function Dashboard() {
             )}
 
             {activeTab === 'movements' && threatFeed && (
-              <div className="threat-feed-terminal" style={{ background: 'rgba(5, 7, 12, 0.9)', border: '1px solid var(--border-subtle)', borderRadius: '4px', padding: '1.5rem', fontFamily: 'var(--font-mono)', height: '65vh', overflowY: 'auto', marginBottom: '2rem', marginTop: '1.5rem' }}>
-                <div style={{ marginBottom: '1.5rem', paddingBottom: '1rem', borderBottom: '1px dashed rgba(255, 255, 255, 0.1)', color: 'var(--text-muted)', fontSize: '0.65rem', letterSpacing: '2px', display: 'flex', justifyContent: 'space-between' }}>
+              <div className="threat-feed-container" style={{ borderRadius: '4px', height: '65vh', overflowY: 'auto', marginBottom: '2rem', marginTop: '1.5rem', paddingRight: '10px' }}>
+                <div style={{ marginBottom: '1.5rem', paddingBottom: '1rem', borderBottom: '1px dashed rgba(255, 255, 255, 0.1)', color: 'var(--text-muted)', fontSize: '0.65rem', letterSpacing: '2px', display: 'flex', justifyContent: 'space-between', fontFamily: 'var(--font-mono)' }}>
                   <span>SYSTEM LOG // MACRO TRENDS ANOMALY DETECTOR</span>
                   <span>STATUS: ACTIVE</span>
                 </div>
                 {threatFeed.length === 0 ? (
-                  <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>NO ANOMALIES DETECTED FOR CURRENT PARAMETERS.</div>
+                  <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>NO ANOMALIES DETECTED FOR CURRENT PARAMETERS.</div>
                 ) : (
                   threatFeed.map((event, i) => (
-                    <div key={i} style={{ display: 'flex', gap: '1rem', marginBottom: '0.8rem', fontSize: '0.75rem', opacity: 0.9 }}>
-                      <span style={{ color: 'var(--text-muted)', minWidth: '80px' }}>[{event.time}]</span>
-                      <span style={{ color: event.color, minWidth: '180px' }}>[{event.type}]</span>
-                      <span style={{ color: '#FFF' }}>{event.text}</span>
+                    <div className="event-card" key={i} style={{ '--event-color': event.color }}>
+                      <div className="event-card-header">
+                        <div className="event-card-header-left">
+                          <span className="event-type" style={{ color: event.color }}>[{event.type}]</span>
+                          <span className="event-agency">{event.agencyName}</span>
+                        </div>
+                        <span className="event-time">{event.time}</span>
+                      </div>
+                      <div className="event-card-body">
+                        <div className="event-row">
+                          <span className="event-label">Fact:</span> 
+                          <span className="event-value">{event.fact}</span>
+                        </div>
+                        <div className="event-row">
+                          <span className="event-label">Why it matters:</span> 
+                          <span className="event-value">{event.why}</span>
+                        </div>
+                        <div className="event-row">
+                          <span className="event-label">Exposure:</span> 
+                          <span className="event-value">{event.exposure}</span>
+                        </div>
+                        <div className="event-row">
+                          <span className="event-label">Recommended play:</span> 
+                          <span className="event-value action-value">{event.play}</span>
+                        </div>
+                        <div className="event-row">
+                          <span className="event-label">Confidence:</span> 
+                          <span className="event-value" style={{ color: 'var(--text-muted)' }}>{event.confidence}</span>
+                        </div>
+                      </div>
                     </div>
                   ))
                 )}
