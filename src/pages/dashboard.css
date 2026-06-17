@@ -199,18 +199,16 @@ input:checked+.slider:before {
 /* Right-Sidebar Card-Nav Layout */
 .dashboard-layout {
     display: grid;
-    grid-template-columns: 200px 1fr;
+    grid-template-columns: 150px 1fr;
     min-height: 100vh;
 }
 
 .sidebar {
-    padding: 2rem 1rem 2rem 1rem;
-    background: var(--bg-surface);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
+    padding: 0.8rem 1rem 1.5rem 1rem;
+    background: rgba(5, 7, 12, 1);
     display: flex;
     flex-direction: column;
-    gap: 2.5rem;
+    gap: 2rem;
     position: sticky;
     top: 0;
     height: 100vh;
@@ -239,76 +237,37 @@ input:checked+.slider:before {
     gap: 0.8rem;
 }
 
-.nav-card {
+.stealth-nav-item {
     display: flex;
-    flex-direction: column;
+    align-items: center;
     gap: 0.5rem;
-    padding: 1.2rem;
-    text-align: left;
+    padding: 0.4rem 0.5rem;
     cursor: pointer;
-    background: var(--bg-surface);
-    border: 1px solid var(--border-subtle);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    border-radius: 8px;
-    transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+    background: transparent;
+    opacity: 0.3;
+    transition: opacity 0.2s ease;
 }
 
-.nav-card:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
-    border-color: var(--border-highlight);
+.stealth-nav-item:hover {
+    opacity: 0.6;
 }
 
-.nav-card.active {
-    background: linear-gradient(135deg, rgba(71, 85, 105, 0.15) 0%, transparent 100%);
-    border: 1px solid rgba(71, 85, 105, 0.4);
-    border-left: 3px solid var(--accent-steel);
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4), inset 0 0 15px rgba(71, 85, 105, 0.1);
+.stealth-nav-item.active {
+    opacity: 0.9;
 }
 
-.nav-card-header {
-    display: flex;
-    align-items: center;
-    gap: 0.8rem;
-}
-
-.nav-card-icon {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: var(--text-muted);
-}
-
-.nav-card.active .nav-card-icon {
-    color: var(--accent-steel);
-}
-
-.nav-card-icon svg {
-    width: 20px;
-    height: 20px;
-    stroke: currentColor;
-    stroke-width: 2;
-    fill: none;
-    stroke-linecap: round;
-    stroke-linejoin: round;
-}
-
-.nav-card-title {
-    font-weight: 600;
-    font-size: 0.85rem;
-    color: var(--text-main);
-    letter-spacing: 0.5px;
-}
-
-.nav-card-metric {
-    font-size: 0.75rem;
-    color: var(--text-muted);
+.nav-bracket {
     font-family: var(--font-mono);
-    padding-left: 2.3rem;
-    /* Aligns with text past icon */
+    font-size: 0.65rem;
+    color: #FFF;
+    width: 10px;
+    text-align: center;
 }
 
-.nav-card.active .nav-card-metric {
-    color: var(--accent-steel);
+.nav-text {
+    font-family: var(--font-mono);
+    font-size: 0.65rem;
+    font-weight: 400;
+    color: #FFF;
+    letter-spacing: 1px;
 }

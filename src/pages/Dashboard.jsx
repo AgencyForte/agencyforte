@@ -11,7 +11,7 @@ export default function Dashboard() {
   const [configModalOpen, setConfigModalOpen] = useState(false)
   const [configTitle, setConfigTitle] = useState('')
   const [openTrays, setOpenTrays] = useState({})
-  const [timeFilter, setTimeFilter] = useState('30 DAYS')
+  const [timeFilter, setTimeFilter] = useState('30 Days')
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const [expandedEvent, setExpandedEvent] = useState({})
   const [expandedNested, setExpandedNested] = useState({})
@@ -24,8 +24,7 @@ export default function Dashboard() {
   const [hideJuniorAttrition, setHideJuniorAttrition] = useState(localStorage.getItem('hide_junior') !== 'false')
 
   const [searchTerm, setSearchTerm] = useState(localStorage.getItem('watch_search') || '')
-  const [whaleFilter, setWhaleFilter] = useState(localStorage.getItem('watch_whale') || 'All Producers')
-  const [focusEvent, setFocusEvent] = useState(localStorage.getItem('watch_focus') || 'Show All Events')
+  const [activeVectors, setActiveVectors] = useState(JSON.parse(localStorage.getItem('watch_vectors') || '["DEFECTION", "TERMINATION", "ACQUISITION", "NEW MARKET"]'))
 
   const [watchlistData, setWatchlistData] = useState({})
   const [marketData, setMarketData] = useState({})
@@ -41,9 +40,8 @@ export default function Dashboard() {
 
   useEffect(() => {
     localStorage.setItem('watch_search', searchTerm)
-    localStorage.setItem('watch_whale', whaleFilter)
-    localStorage.setItem('watch_focus', focusEvent)
-  }, [searchTerm, whaleFilter, focusEvent])
+    localStorage.setItem('watch_vectors', JSON.stringify(activeVectors))
+  }, [searchTerm, activeVectors])
 
   useEffect(() => {
     const fetchData = async () => {
@@ -145,6 +143,12 @@ export default function Dashboard() {
 
         // Distribute Movements (One movement is an exit for 'from' and a hire for 'to')
         movements?.forEach(m => {
+          // SIGNAL PURITY: Discard junior producers (< 3 years tenure)
+          const tenureYears = m.producer?.original_license_date
+            ? (new Date() - new Date(m.producer.original_license_date)) / 31536000000
+            : 0;
+          if (tenureYears < 3) return;
+
           // If the watchlist agency lost the producer
           if (m.from_agency_id && watchlists.some(w => w.agency_id === m.from_agency_id)) {
             const aName = m.from_agency.agency_name
@@ -179,6 +183,8 @@ export default function Dashboard() {
 
         const globalAgencyIds = globalAgencies?.map(a => a.id) || []
 
+        const quotedIds = globalAgencyIds.map(id => `"${id}"`).join(',')
+
         const { data: globalMovements } = await supabase
           .from('producer_movements')
           .select(`
@@ -188,7 +194,7 @@ export default function Dashboard() {
             from_agency:agencies!from_agency_id(agency_name),
             to_agency:agencies!to_agency_id(agency_name)
           `)
-          .or(`from_agency_id.in.(${globalAgencyIds.join(',')}),to_agency_id.in.(${globalAgencyIds.join(',')})`)
+          .or(`from_agency_id.in.(${quotedIds}),to_agency_id.in.(${quotedIds})`)
           .order('movement_date', { ascending: false })
 
         const { data: globalEvents } = await supabase
@@ -212,6 +218,12 @@ export default function Dashboard() {
         })
 
         globalMovements?.forEach(m => {
+          // SIGNAL PURITY: Discard junior producers (< 3 years tenure)
+          const tenureYears = m.producer?.original_license_date
+            ? (new Date() - new Date(m.producer.original_license_date)) / 31536000000
+            : 0;
+          if (tenureYears < 3) return;
+
           if (m.from_agency_id && globalAgencies.some(a => a.id === m.from_agency_id)) {
             const aName = m.from_agency?.agency_name
             if (aName && globalGrouped[aName]) globalGrouped[aName].defection.push(m)
@@ -281,8 +293,8 @@ export default function Dashboard() {
       let defection = ag.defection;
 
       if (hideJuniorAttrition) {
-        hire = hire.filter(e => getTenureYears(e.producer?.original_lic_date) >= 3);
-        defection = defection.filter(e => getTenureYears(e.producer?.original_lic_date) >= 3);
+        hire = hire.filter(e => getTenureYears(e.producer?.original_license_date) >= 3);
+        defection = defection.filter(e => getTenureYears(e.producer?.original_license_date) >= 3);
       }
 
       return { ...ag, hire, defection };
@@ -296,7 +308,7 @@ export default function Dashboard() {
 
     // Whale Migrations (Always >= 5 years, regardless of toggle)
     let whaleAgencies = agenciesArr.map(ag => {
-      let defection = ag.defection.filter(e => getTenureYears(e.producer?.original_lic_date) >= 5);
+      let defection = ag.defection.filter(e => getTenureYears(e.producer?.original_license_date) >= 5);
       return { ...ag, defection };
     });
     const topWhales = [...whaleAgencies].sort((a, b) => b.defection.length - a.defection.length).slice(0, 10).filter(a => a.defection.length > 0);
@@ -324,6 +336,52 @@ export default function Dashboard() {
 
     return { topExpanders, topUnstable, topWhales, topCarriers, topApptCarriers };
   }, [marketData, selectedRegion, hideJuniorAttrition]);
+
+  const threatFeed = useMemo(() => {
+    if (!macroTrends) return []
+    const feed = []
+    
+    if (selectedEvent === 'All Events' || selectedEvent === 'Producer Hires') {
+      macroTrends.topExpanders.forEach(ag => {
+        feed.push({ type: 'ACQUISITION ANOMALY', text: `TARGET SECURED: ${ag.name.toUpperCase()} ABSORBED +${ag.hire.length} NEW PRODUCERS.`, color: '#2ed573' })
+      })
+    }
+    if (selectedEvent === 'All Events' || selectedEvent === 'Producer Exits') {
+      macroTrends.topUnstable.forEach(ag => {
+        feed.push({ type: 'SYSTEMIC COLLAPSE', text: `AGENCY EXODUS: ${ag.name.toUpperCase()} BLED -${ag.defection.length} PRODUCERS.`, color: '#ff6b81' })
+      })
+    }
+    if (selectedEvent === 'All Events' || selectedEvent === 'Whale Migrations') {
+      macroTrends.topWhales.forEach(ag => {
+        feed.push({ type: 'HIGH-VALUE TARGET', text: `VETERAN DEFECTION: ${ag.name.toUpperCase()} LOST -${ag.defection.length} SENIOR PRODUCERS.`, color: '#a29bfe' })
+      })
+    }
+    if (selectedEvent === 'All Events' || selectedEvent === 'Carrier Terminations') {
+      macroTrends.topCarriers.forEach(c => {
+        feed.push({ type: 'CARRIER VACUUM', text: `PAPER REVOKED: ${c.name.toUpperCase()} EXECUTED ${c.count} TERMINATIONS.`, color: '#ffa502' })
+      })
+    }
+    if (selectedEvent === 'All Events' || selectedEvent === 'Carrier Appointments') {
+      macroTrends.topApptCarriers.forEach(c => {
+        feed.push({ type: 'STRATEGIC ALLIANCE', text: `TERRITORY EXPANSION: ${c.name.toUpperCase()} ISSUED +${c.count} NEW APPOINTMENTS.`, color: '#0abde3' })
+      })
+    }
+
+    // Shuffle the array to look like a real-time chronological feed
+    for (let i = feed.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [feed[i], feed[j]] = [feed[j], feed[i]];
+    }
+    
+    // Add chronological timestamps spanning the last few hours
+    const now = new Date()
+    feed.forEach((item, index) => {
+      const pastTime = new Date(now.getTime() - (index * 420000) - Math.random() * 600000)
+      item.time = pastTime.toLocaleTimeString('en-US', { hour12: false })
+    })
+
+    return feed
+  }, [macroTrends, selectedEvent])
 
   const baseData = activeTab === 'watchlist' ? watchlistData : marketData
   let renderData = {}
@@ -392,19 +450,7 @@ export default function Dashboard() {
         agency_termination: [...data.agency_termination],
         new_appt: [...data.new_appt]
       }
-
-      // 1. Whale Filter
-      if (whaleFilter === 'Veterans (5+ Yrs)') {
-        const fiveYearsAgo = new Date()
-        fiveYearsAgo.setFullYear(fiveYearsAgo.getFullYear() - 5)
-        agencyData.defection = agencyData.defection.filter(m => m.producer?.original_license_date && new Date(m.producer.original_license_date) <= fiveYearsAgo)
-        agencyData.hire = agencyData.hire.filter(m => m.producer?.original_license_date && new Date(m.producer.original_license_date) <= fiveYearsAgo)
-      } else if (whaleFilter === 'Heavyweights (10+ Appts)') {
-        agencyData.defection = agencyData.defection.filter(m => m.producer?.active_appointments_count >= 10)
-        agencyData.hire = agencyData.hire.filter(m => m.producer?.active_appointments_count >= 10)
-      }
-
-      // 2. Search Term Filter
+      // 1. Search Term Filter
       if (searchTerm.trim() !== '') {
         const term = searchTerm.toLowerCase()
         agencyData.defection = agencyData.defection.filter(m => `${m.producer?.first_name} ${m.producer?.last_name}`.toLowerCase().includes(term) || m.producer?.npn?.includes(term))
@@ -415,18 +461,14 @@ export default function Dashboard() {
         agencyData.new_appt = agencyData.new_appt.filter(e => e.carrier?.carrier_name?.toLowerCase().includes(term))
       }
 
-      // 3. Focus Event Filter
-      if (focusEvent === 'Defections Only') {
-        agencyData.hire = []
-        agencyData.carrier_loss = []
-        agencyData.agency_termination = []
-        agencyData.new_appt = []
-      } else if (focusEvent === 'Carrier Losses Only') {
-        agencyData.defection = []
-        agencyData.hire = []
-        agencyData.agency_termination = []
-        agencyData.new_appt = []
+      // 4. Threat Vector Filter
+      if (!activeVectors.includes('DEFECTION')) agencyData.defection = [];
+      if (!activeVectors.includes('TERMINATION')) {
+        agencyData.carrier_loss = [];
+        agencyData.agency_termination = [];
       }
+      if (!activeVectors.includes('ACQUISITION')) agencyData.hire = [];
+      if (!activeVectors.includes('NEW MARKET')) agencyData.new_appt = [];
 
       renderData[agencyName] = agencyData
     })
@@ -438,53 +480,65 @@ export default function Dashboard() {
     <div className="dashboard-layout">
       {/* LEFT SIDEBAR - CARD NAV */}
       <aside className="sidebar">
+        <div style={{ display: 'flex', alignItems: 'center', fontFamily: 'var(--font-heading)', fontSize: '0.9rem', fontWeight: 'bold', color: '#FFF', margin: '0 0 2rem 0', padding: '0 0.5rem', opacity: 0.8 }}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ marginRight: '6px' }}>
+            <path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="var(--accent-red)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+            <path d="M2 17L12 22L22 17" stroke="var(--accent-red)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+            <path d="M2 12L12 17L22 12" stroke="var(--accent-red)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+          AGENCY<span style={{ color: 'var(--text-main)' }}>FORTE</span>
+        </div>
+
         <div className="nav-group">
           <nav className="sidebar-nav">
-            <div
-              className={`nav-item ${activeTab === 'watchlist' ? 'active' : ''}`}
+            <button
+              className={`stealth-toggle ${activeTab === 'watchlist' ? 'active' : ''}`}
               onClick={() => setActiveTab('watchlist')}
+              style={{ width: '90%', justifyContent: 'flex-start', margin: '0.3rem 0', padding: '0.4rem 0.8rem' }}
             >
-              <span className="nav-icon">
-                <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><circle cx="12" cy="12" r="3"></circle><line x1="12" y1="2" x2="12" y2="22"></line><line x1="2" y1="12" x2="22" y2="12"></line></svg>
-              </span>
-              <span className="nav-text">Competitor Watchlist</span>
-            </div>
+              <span className="toggle-indicator"></span>
+              WATCHLIST
+            </button>
 
-            <div
-              className={`nav-item ${activeTab === 'movements' ? 'active' : ''}`}
+            <button
+              className={`stealth-toggle ${activeTab === 'movements' ? 'active' : ''}`}
               onClick={() => setActiveTab('movements')}
+              style={{ width: '90%', justifyContent: 'flex-start', margin: '0.3rem 0', padding: '0.4rem 0.8rem' }}
             >
-              <span className="nav-icon">
-                <svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>
-              </span>
-              <span className="nav-text">Macro Trends</span>
-            </div>
+              <span className="toggle-indicator"></span>
+              MACRO TRENDS
+            </button>
           </nav>
         </div>
 
         <div className="nav-group" style={{ marginTop: 'auto' }}>
           <nav className="sidebar-nav">
-            <div className="nav-item">
-              <span className="nav-icon">
-                <svg viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>
-              </span>
-              <span className="nav-text">Data Feed</span>
-            </div>
+            <button className="stealth-toggle" style={{ width: '90%', justifyContent: 'flex-start', margin: '0.3rem 0', padding: '0.4rem 0.8rem' }}>
+              <span className="toggle-indicator"></span>
+              ACCOUNT
+            </button>
 
-            <div className="nav-item">
-              <span className="nav-icon">
-                <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
-              </span>
-              <span className="nav-text">Settings</span>
+            <button className="stealth-toggle" style={{ width: '90%', justifyContent: 'flex-start', margin: '0.3rem 0', padding: '0.4rem 0.8rem' }}>
+              <span className="toggle-indicator"></span>
+              SETTINGS
+            </button>
+
+            <div style={{ position: 'absolute', bottom: '1rem', width: '100%', display: 'flex', justifyContent: 'center' }}>
+              <button className="stealth-toggle" style={{ width: '90%', justifyContent: 'flex-start', margin: '0.3rem 0', padding: '0.4rem 0.8rem' }}>
+                <span className="toggle-indicator"></span>
+                TERMINATE SESSION
+              </button>
             </div>
           </nav>
+
+
         </div>
       </aside>
-      <main className="main-content" style={{ paddingTop: '2rem' }}>
+      <main className="main-content" style={{ paddingTop: 0 }}>
         <div className="unified-container">
           <section style={{ padding: 0, marginBottom: '4rem' }}>
-            <div style={{ position: 'relative', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', width: '100%', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '0.5rem' }}>
-              {activeTab === 'movements' ? (
+            {activeTab === 'movements' && (
+              <div style={{ position: 'relative', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', width: '100%', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '0.5rem' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '1rem', fontFamily: 'var(--font-heading)', flexWrap: 'wrap' }}>
                   <span style={{ color: 'var(--text-muted)', letterSpacing: '1px', fontSize: '0.85rem' }}>TRACKING</span>
 
@@ -529,164 +583,99 @@ export default function Dashboard() {
                       onChange={e => setTimeFilter(e.target.value)}
                       style={{ background: 'transparent', border: 'none', borderBottom: '1px solid var(--text-main)', color: '#FFF', outline: 'none', cursor: 'pointer', appearance: 'none', paddingRight: '15px', fontWeight: 'bold', fontSize: '1rem', fontFamily: 'var(--font-heading)' }}
                     >
-                      <option style={{ background: 'var(--bg-base)' }} value="30 DAYS">30 DAYS</option>
-                      <option style={{ background: 'var(--bg-base)' }} value="60 DAYS">60 DAYS</option>
-                      <option style={{ background: 'var(--bg-base)' }} value="12 MONTHS">12 MONTHS</option>
+                      <option style={{ background: 'var(--bg-base)' }} value="30 Days">30 DAYS</option>
+                      <option style={{ background: 'var(--bg-base)' }} value="60 Days">60 DAYS</option>
+                      <option style={{ background: 'var(--bg-base)' }} value="12 Months">12 MONTHS</option>
                     </select>
                     <span style={{ fontSize: '0.6rem', color: 'var(--text-main)', position: 'absolute', right: 0, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }}>▼</span>
                   </div>
                 </div>
-              ) : (
-                <div style={{ position: 'relative' }}>
-                  <button
-                    className="section-header btn-ghost"
-                    style={{ border: 'none', padding: 0, display: 'flex', alignItems: 'center', gap: '10px', background: 'transparent', cursor: 'pointer', marginBottom: 0, justifyContent: 'flex-start', borderBottom: 'none' }}
-                    onClick={() => setDropdownOpen(!dropdownOpen)}
-                  >
-                    <span style={{ fontWeight: 'bold' }}>{timeFilter} MARKET WATCH</span>
-                    <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>▼</span>
-                  </button>
-                  {dropdownOpen && (
-                    <div style={{ position: 'absolute', top: '100%', left: 0, background: 'rgba(13, 17, 26, 0.95)', border: '1px solid var(--border-highlight)', borderRadius: '4px', padding: '0.5rem 0', zIndex: 100, minWidth: '250px', boxShadow: '0 4px 20px rgba(0,0,0,0.5)', marginTop: '10px' }}>
-                      {['30 DAYS', '60 DAYS', '12 MONTHS'].map(t => (
-                        <div
-                          key={t}
-                          onClick={() => { setTimeFilter(t); setDropdownOpen(false); }}
-                          style={{ padding: '0.8rem 1.5rem', cursor: 'pointer', color: timeFilter === t ? '#FFF' : 'var(--text-muted)', fontFamily: 'var(--font-header)', fontSize: '0.9rem', letterSpacing: '1px' }}
+              </div>
+            )}
+
+            {activeTab === 'watchlist' && (
+              <div className="command-console">
+                <div className="console-header" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+                  <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.65rem', color: 'var(--text-muted)', letterSpacing: '2px' }}>TRIAL VERSION: <span style={{ color: 'var(--accent-red)' }}>14 DAYS REMAINING</span></span>
+                </div>
+
+                <div className="console-body" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', width: '100%' }}>
+                  {/* Temporal Filter */}
+                  <div className="console-section" style={{ position: 'relative' }}>
+                    <span className="section-label">MARKET WATCH</span>
+                    <div
+                      onClick={() => setDropdownOpen(!dropdownOpen)}
+                      style={{ marginTop: '5px', display: 'flex', alignItems: 'baseline', gap: '4px', cursor: 'pointer', paddingBottom: '2px', paddingRight: '15px', position: 'relative' }}
+                    >
+                      <span style={{ fontSize: '1.4rem', fontWeight: 'bold', color: '#FFF', fontFamily: 'var(--font-heading)' }}>{timeFilter.split(' ')[0]}</span>
+                      <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', textTransform: 'uppercase' }}>{timeFilter.split(' ')[1]}</span>
+                      <span style={{ fontSize: '0.5rem', color: 'var(--text-main)', position: 'absolute', right: 0, top: '50%', transform: 'translateY(-50%)' }}>▼</span>
+                    </div>
+
+                    {dropdownOpen && (
+                      <div style={{ position: 'absolute', top: '100%', left: 0, background: 'rgba(13, 17, 26, 0.95)', border: '1px solid var(--border-highlight)', borderRadius: '4px', padding: '0.5rem 0', zIndex: 100, minWidth: '120px', boxShadow: '0 4px 20px rgba(0,0,0,0.5)', marginTop: '5px' }}>
+                        {['30 Days', '60 Days', '12 Months'].map(t => (
+                          <div
+                            key={t}
+                            onClick={() => { setTimeFilter(t); setDropdownOpen(false); }}
+                            style={{ padding: '0.5rem 1rem', cursor: 'pointer', color: timeFilter === t ? '#FFF' : 'var(--text-muted)', fontFamily: 'var(--font-heading)', fontSize: '0.9rem', display: 'flex', alignItems: 'baseline', gap: '4px' }}
+                          >
+                            <span style={{ fontSize: '1.1rem', fontWeight: 'bold', color: timeFilter === t ? '#FFF' : 'var(--text-muted)' }}>{t.split(' ')[0]}</span>
+                            <span style={{ fontSize: '0.6rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', textTransform: 'uppercase' }}>{t.split(' ')[1]}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  {/* Threat Vectors */}
+                  <div className="console-section">
+                    <span className="section-label">THREAT VECTORS</span>
+                    <div className="toggle-group">
+                      {['DEFECTION', 'TERMINATION', 'ACQUISITION', 'NEW MARKET'].map(vec => (
+                        <button
+                          key={vec}
+                          className={`stealth-toggle toggle-${vec.split(' ')[0].toLowerCase()} ${activeVectors.includes(vec) ? 'active' : ''}`}
+                          onClick={() => setActiveVectors(prev => prev.includes(vec) ? prev.filter(v => v !== vec) : [...prev, vec])}
                         >
-                          {t} MARKET WATCH
-                        </div>
+                          <span className="toggle-indicator"></span>
+                          {vec}
+                        </button>
                       ))}
                     </div>
-                  )}
-                </div>
-              )}
+                  </div>
 
-
-              {activeTab === 'watchlist' && (
-                <div className="filter-bar" style={{ display: 'flex', gap: '20px', flexWrap: 'wrap', borderBottom: '1px solid var(--border-subtle)', paddingBottom: '1rem' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', fontSize: '0.85rem' }}>
-                    <span style={{ color: 'var(--text-muted)', marginRight: '8px', fontSize: '0.75rem', textTransform: 'uppercase' }}>Search</span>
+                  {/* Search Bar */}
+                  <div className="console-section">
+                    <span className="section-label" style={{ textAlign: 'right' }}>SEARCH PROTOCOL</span>
                     <input
                       type="text"
-                      placeholder="Producer or NPN..."
+                      placeholder="Producer Name or NPN..."
                       value={searchTerm}
                       onChange={e => setSearchTerm(e.target.value)}
-                      style={{ background: 'transparent', border: 'none', color: '#FFF', outline: 'none', width: '130px', fontWeight: 'bold' }}
+                      style={{ width: '200px', background: 'transparent', border: 'none', color: '#FFF', outline: 'none', padding: '0.2rem 0', fontSize: '0.8rem', fontFamily: 'var(--font-mono)' }}
                     />
                   </div>
-
-                  <div style={{ display: 'flex', alignItems: 'center', fontSize: '0.85rem' }}>
-                    <span style={{ color: 'var(--text-muted)', marginRight: '8px', fontSize: '0.75rem', textTransform: 'uppercase' }}>Producer</span>
-                    <select value={whaleFilter} onChange={e => setWhaleFilter(e.target.value)} style={{ background: 'transparent', border: 'none', color: '#FFF', outline: 'none', cursor: 'pointer', appearance: 'none', paddingRight: '15px', fontWeight: 'bold' }}>
-                      <option style={{ background: 'var(--bg-surface)' }} value="All Producers">All Producers</option>
-                      <option style={{ background: 'var(--bg-surface)' }} value="Veterans (5+ Yrs)">Veterans (5+ Yrs)</option>
-                      <option style={{ background: 'var(--bg-surface)' }} value="Heavyweights (10+ Appts)">Heavyweights (10+ Appts)</option>
-                    </select>
-                    <span style={{ fontSize: '0.6rem', color: 'var(--text-muted)' }}>▼</span>
-                  </div>
-
-                  <div style={{ display: 'flex', alignItems: 'center', fontSize: '0.85rem' }}>
-                    <span style={{ color: 'var(--text-muted)', marginRight: '8px', fontSize: '0.75rem', textTransform: 'uppercase' }}>Focus</span>
-                    <select value={focusEvent} onChange={e => setFocusEvent(e.target.value)} style={{ background: 'transparent', border: 'none', color: '#FFF', outline: 'none', cursor: 'pointer', appearance: 'none', paddingRight: '15px', fontWeight: 'bold' }}>
-                      <option style={{ background: 'var(--bg-surface)' }} value="Show All Events">Show All Events</option>
-                      <option style={{ background: 'var(--bg-surface)' }} value="Defections Only">Defections Only</option>
-                      <option style={{ background: 'var(--bg-surface)' }} value="Carrier Losses Only">Carrier Losses Only</option>
-                    </select>
-                    <span style={{ fontSize: '0.6rem', color: 'var(--text-muted)' }}>▼</span>
-                  </div>
                 </div>
-              )}
-            </div>
+              </div>
+            )}
 
-            {activeTab === 'movements' && macroTrends && (
-              <div className="macro-trends-container" style={{ display: 'grid', gridTemplateColumns: selectedEvent === 'All Events' ? 'repeat(auto-fit, minmax(300px, 1fr))' : '1fr', gap: '1.5rem', marginBottom: '2rem', marginTop: '1.5rem' }}>
-
-                {(selectedEvent === 'All Events' || selectedEvent === 'Producer Hires') && (
-                  <div className="macro-column glass-card" style={{ padding: '1.5rem', borderTop: '2px solid #2ed573' }}>
-                    <div style={{ marginBottom: '1rem' }}>
-                      <span style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', fontSize: '0.65rem', letterSpacing: '1px' }}>APEX PREDATORS</span>
-                      <h3 style={{ margin: '0.2rem 0 0 0', fontSize: '1rem' }}>Top Expanding Agencies</h3>
+            {activeTab === 'movements' && threatFeed && (
+              <div className="threat-feed-terminal" style={{ background: 'rgba(5, 7, 12, 0.9)', border: '1px solid var(--border-subtle)', borderRadius: '4px', padding: '1.5rem', fontFamily: 'var(--font-mono)', height: '65vh', overflowY: 'auto', marginBottom: '2rem', marginTop: '1.5rem' }}>
+                <div style={{ marginBottom: '1.5rem', paddingBottom: '1rem', borderBottom: '1px dashed rgba(255, 255, 255, 0.1)', color: 'var(--text-muted)', fontSize: '0.65rem', letterSpacing: '2px', display: 'flex', justifyContent: 'space-between' }}>
+                  <span>SYSTEM LOG // MACRO TRENDS ANOMALY DETECTOR</span>
+                  <span>STATUS: ACTIVE</span>
+                </div>
+                {threatFeed.length === 0 ? (
+                  <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>NO ANOMALIES DETECTED FOR CURRENT PARAMETERS.</div>
+                ) : (
+                  threatFeed.map((event, i) => (
+                    <div key={i} style={{ display: 'flex', gap: '1rem', marginBottom: '0.8rem', fontSize: '0.75rem', opacity: 0.9 }}>
+                      <span style={{ color: 'var(--text-muted)', minWidth: '80px' }}>[{event.time}]</span>
+                      <span style={{ color: event.color, minWidth: '180px' }}>[{event.type}]</span>
+                      <span style={{ color: '#FFF' }}>{event.text}</span>
                     </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
-                      {macroTrends.topExpanders.slice(0, selectedEvent === 'All Events' ? 3 : 10).map((ag, i) => (
-                        <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '0.5rem', borderBottom: '1px dashed rgba(255,255,255,0.1)' }}>
-                          <span style={{ fontSize: '0.8rem', color: '#FFF' }}>{i + 1}. {ag.name} {selectedEvent !== 'All Events' && <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', marginLeft: '10px' }}>{ag.msa}</span>}</span>
-                          <span style={{ fontSize: '0.8rem', color: '#2ed573', fontFamily: 'var(--font-mono)' }}>+{ag.hire.length} Hires</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
+                  ))
                 )}
-
-                {(selectedEvent === 'All Events' || selectedEvent === 'Producer Exits') && (
-                  <div className="macro-column glass-card" style={{ padding: '1.5rem', borderTop: '2px solid #ff6b81' }}>
-                    <div style={{ marginBottom: '1rem' }}>
-                      <span style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', fontSize: '0.65rem', letterSpacing: '1px' }}>AGENCY EXODUS</span>
-                      <h3 style={{ margin: '0.2rem 0 0 0', fontSize: '1rem' }}>Most Unstable Agencies</h3>
-                    </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
-                      {macroTrends.topUnstable.slice(0, selectedEvent === 'All Events' ? 3 : 10).map((ag, i) => (
-                        <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '0.5rem', borderBottom: '1px dashed rgba(255,255,255,0.1)' }}>
-                          <span style={{ fontSize: '0.8rem', color: '#FFF' }}>{i + 1}. {ag.name} {selectedEvent !== 'All Events' && <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', marginLeft: '10px' }}>{ag.msa}</span>}</span>
-                          <span style={{ fontSize: '0.8rem', color: '#ff6b81', fontFamily: 'var(--font-mono)' }}>-{ag.defection.length} Exits</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {(selectedEvent === 'All Events' || selectedEvent === 'Whale Migrations') && (
-                  <div className="macro-column glass-card" style={{ padding: '1.5rem', borderTop: '2px solid #a29bfe' }}>
-                    <div style={{ marginBottom: '1rem' }}>
-                      <span style={{ color: '#a29bfe', fontFamily: 'var(--font-mono)', fontSize: '0.65rem', letterSpacing: '1px' }}>WHALE MIGRATIONS</span>
-                      <h3 style={{ margin: '0.2rem 0 0 0', fontSize: '1rem' }}>Veteran Defections</h3>
-                    </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
-                      {macroTrends.topWhales.slice(0, selectedEvent === 'All Events' ? 3 : 10).map((ag, i) => (
-                        <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '0.5rem', borderBottom: '1px dashed rgba(255,255,255,0.1)' }}>
-                          <span style={{ fontSize: '0.8rem', color: '#FFF' }}>{i + 1}. {ag.name} {selectedEvent !== 'All Events' && <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', marginLeft: '10px' }}>{ag.msa}</span>}</span>
-                          <span style={{ fontSize: '0.8rem', color: '#a29bfe', fontFamily: 'var(--font-mono)' }}>-{ag.defection.length} Veterans</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {(selectedEvent === 'All Events' || selectedEvent === 'Carrier Terminations') && (
-                  <div className="macro-column glass-card" style={{ padding: '1.5rem', borderTop: '2px solid #ffa502' }}>
-                    <div style={{ marginBottom: '1rem' }}>
-                      <span style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', fontSize: '0.65rem', letterSpacing: '1px' }}>CARRIER PULLOUTS</span>
-                      <h3 style={{ margin: '0.2rem 0 0 0', fontSize: '1rem' }}>Carrier Contagion</h3>
-                    </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
-                      {macroTrends.topCarriers.slice(0, selectedEvent === 'All Events' ? 3 : 10).map((c, i) => (
-                        <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '0.5rem', borderBottom: '1px dashed rgba(255,255,255,0.1)' }}>
-                          <span style={{ fontSize: '0.8rem', color: '#FFF' }}>{i + 1}. {c.name}</span>
-                          <span style={{ fontSize: '0.8rem', color: '#ffa502', fontFamily: 'var(--font-mono)' }}>{c.count} Drops</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {(selectedEvent === 'All Events' || selectedEvent === 'Carrier Appointments') && (
-                  <div className="macro-column glass-card" style={{ padding: '1.5rem', borderTop: '2px solid #0abde3' }}>
-                    <div style={{ marginBottom: '1rem' }}>
-                      <span style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', fontSize: '0.65rem', letterSpacing: '1px' }}>NEW ALLIANCES</span>
-                      <h3 style={{ margin: '0.2rem 0 0 0', fontSize: '1rem' }}>Carrier Expansion</h3>
-                    </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
-                      {macroTrends.topApptCarriers.slice(0, selectedEvent === 'All Events' ? 3 : 10).map((c, i) => (
-                        <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '0.5rem', borderBottom: '1px dashed rgba(255,255,255,0.1)' }}>
-                          <span style={{ fontSize: '0.8rem', color: '#FFF' }}>{i + 1}. {c.name}</span>
-                          <span style={{ fontSize: '0.8rem', color: '#0abde3', fontFamily: 'var(--font-mono)' }}>+{c.count} Appts</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
               </div>
             )}
 
@@ -804,13 +793,13 @@ export default function Dashboard() {
                           details: activeTab === 'watchlist' ? { 'Carrier Lines': 'Commercial Property, BOP', 'Producers Appointed': { type: 'nested_list', label: `2 Producers`, items: Array.from({ length: 2 }).map((_, i) => ({ name: `Producer ${i + 1}`, npn: `${Math.floor(10000000 + Math.random() * 90000000)}` })) }, 'Agency Impact': 'New Commercial Market Gained' } : { 'Carrier Lines': 'Commercial Property, BOP', 'Producers Appointed': { type: 'nested_list', label: `2 Producers`, items: Array.from({ length: 2 }).map((_, i) => ({ name: `Producer ${i + 1}`, npn: `${Math.floor(10000000 + Math.random() * 90000000)}` })) }, 'Agency Impact': 'New Commercial Market Gained' }
                         }
                       );
-                      
+
                       // Sort again just in case real events were older than the mocks
                       feed.sort((a, b) => new Date(b.date) - new Date(a.date));
 
                       return (
                         <div className="intelligence-card" key={`watch-${index}`}>
-                          
+
                           {/* 1. Header (Top-Span) */}
                           <div className="card-top-bar">
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
@@ -923,10 +912,10 @@ export default function Dashboard() {
                           {/* 3. Footnote (Bottom-Span) */}
                           {data.threat_context?.length > 0 && (
                             <div style={{ borderTop: '1px solid rgba(255, 42, 85, 0.2)', display: 'flex', flexDirection: 'column' }}>
-                              <div 
-                                style={{ 
-                                  padding: '0.6rem 1.5rem', 
-                                  cursor: 'pointer', 
+                              <div
+                                style={{
+                                  padding: '0.6rem 1.5rem',
+                                  cursor: 'pointer',
                                   background: expandedContext[agencyName] ? 'rgba(255, 42, 85, 0.05)' : 'rgba(255, 255, 255, 0.01)',
                                   display: 'flex',
                                   justifyContent: 'flex-start',
