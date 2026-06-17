@@ -17,6 +17,8 @@ export default function Dashboard() {
   const [expandedNested, setExpandedNested] = useState({})
   const [expandedContext, setExpandedContext] = useState({})
 
+  const [showTerminateModal, setShowTerminateModal] = useState(false)
+
   const initRegion = localStorage.getItem('market_region');
   const [selectedRegion, setSelectedRegion] = useState((initRegion === 'Houston' ? 'Greater Houston' : initRegion) || 'All Texas')
   const [selectedLOB, setSelectedLOB] = useState(localStorage.getItem('market_lob') || 'All LOBs')
@@ -701,7 +703,7 @@ export default function Dashboard() {
             </button>
 
             <div style={{ position: 'absolute', bottom: '1rem', width: '100%', display: 'flex', justifyContent: 'center' }}>
-              <button className="stealth-toggle" style={{ width: '90%', justifyContent: 'flex-start', margin: '0.3rem 0', padding: '0.4rem 0.8rem' }}>
+              <button className="stealth-toggle" onClick={() => setShowTerminateModal(true)} style={{ width: '90%', justifyContent: 'flex-start', margin: '0.3rem 0', padding: '0.4rem 0.8rem' }}>
                 <span className="toggle-indicator"></span>
                 TERMINATE SESSION
               </button>
@@ -1322,6 +1324,7 @@ export default function Dashboard() {
                         borderRadius: '2px',
                         transition: 'all 0.2s ease'
                       }}
+                        onClick={() => setShowTerminateModal(true)}
                         onMouseOver={e => { e.currentTarget.style.background = 'rgba(153, 27, 27, 0.1)'; e.currentTarget.style.color = '#FFF'; e.currentTarget.style.borderColor = 'rgba(153, 27, 27, 0.8)'; }}
                         onMouseOut={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'rgba(255, 255, 255, 0.5)'; e.currentTarget.style.borderColor = 'rgba(153, 27, 27, 0.3)'; }}
                       >
@@ -1363,7 +1366,7 @@ export default function Dashboard() {
                 <div style={{ marginBottom: '2rem' }}>
                   <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.75rem', color: 'var(--text-muted)', letterSpacing: '2px', marginBottom: '1rem', display: 'block' }}>INGESTION PIPELINES</span>
                   <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
-                    
+
                     {/* Node 1: NIPR */}
                     <div style={{ flex: 1, minWidth: '280px', border: '1px solid var(--border-subtle)', background: 'rgba(10, 14, 23, 0.5)', padding: '1.2rem', borderRadius: '4px', position: 'relative', overflow: 'hidden' }}>
                       <div style={{ position: 'absolute', top: 0, left: 0, width: '3px', height: '100%', background: 'var(--accent-green)', boxShadow: '0 0 8px var(--accent-green)' }}></div>
@@ -1439,7 +1442,7 @@ export default function Dashboard() {
                 <div>
                   <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.75rem', color: 'var(--text-muted)', letterSpacing: '2px', marginBottom: '1rem', display: 'block' }}>INFERENCE ENGINE LOGIC</span>
                   <div style={{ border: '1px solid var(--border-subtle)', background: 'rgba(10, 14, 23, 0.5)', borderRadius: '4px', padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-                    
+
                     <div style={{ borderBottom: '1px dashed rgba(255,255,255,0.1)', paddingBottom: '1.5rem' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '0.5rem' }}>
                         <span style={{ color: 'var(--accent-red)', fontFamily: 'var(--font-mono)', fontSize: '0.7rem', padding: '0.2rem 0.5rem', border: '1px solid rgba(255, 42, 85, 0.3)', borderRadius: '2px' }}>EVENT: DEFECTION</span>
@@ -1518,6 +1521,41 @@ export default function Dashboard() {
           </div>
 
           <button className="btn-primary-full" onClick={() => setConfigModalOpen(false)} style={{ padding: '0.6rem', fontSize: '0.75rem' }}>SAVE</button>
+        </div>
+      </div>
+      {/* SESSION TERMINATION PROTOCOL MODAL */}
+      <div className={`modal-overlay ${showTerminateModal ? 'active' : ''}`} style={{ backdropFilter: 'blur(8px)', background: 'rgba(0,0,0,0.85)' }}>
+        <div className="modal-content glass-card" style={{ padding: '2rem', maxWidth: '450px', width: '90%', margin: 'auto', border: '1px solid rgba(255, 42, 85, 0.4)', boxShadow: '0 0 30px rgba(255, 42, 85, 0.1)' }}>
+          <div style={{ marginBottom: '1.5rem', textAlign: 'center' }}>
+            <span style={{ color: 'var(--accent-red)', fontFamily: 'var(--font-mono)', fontSize: '0.85rem', letterSpacing: '2px', display: 'block', marginBottom: '1rem' }}>[ SESSION TERMINATION PROTOCOL ]</span>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', lineHeight: 1.6, margin: 0 }}>
+              Are you sure you want to sever the system uplink? Local cache will be purged and active intel feeds will pause until re-authentication.
+            </p>
+          </div>
+          <div style={{ display: 'flex', gap: '1rem', marginTop: '2rem' }}>
+            <button className="btn-ghost" style={{ flex: 1, padding: '0.8rem', fontSize: '0.8rem' }} onClick={() => setShowTerminateModal(false)}>
+              [ ABORT ]
+            </button>
+            <button style={{
+              flex: 1,
+              background: 'rgba(255, 42, 85, 0.1)',
+              border: '1px solid var(--accent-red)',
+              color: 'var(--accent-red)',
+              padding: '0.8rem',
+              fontSize: '0.8rem',
+              fontFamily: 'var(--font-mono)',
+              letterSpacing: '1px',
+              cursor: 'pointer',
+              transition: 'all 0.2s ease',
+              boxShadow: '0 0 15px rgba(255, 42, 85, 0.2)'
+            }}
+              onMouseOver={e => { e.currentTarget.style.background = 'rgba(255, 42, 85, 0.2)'; e.currentTarget.style.color = '#FFF'; }}
+              onMouseOut={e => { e.currentTarget.style.background = 'rgba(255, 42, 85, 0.1)'; e.currentTarget.style.color = 'var(--accent-red)'; }}
+              onClick={() => window.location.reload()}
+            >
+              [ TERMINATE ]
+            </button>
+          </div>
         </div>
       </div>
     </div>
