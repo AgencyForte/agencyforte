@@ -67,19 +67,19 @@ async function seed() {
   // 4. Producers (Rainmakers & standard agents)
   console.log("💼 Inserting producers...")
   const { data: producers, error: proErr } = await supabase.from('producers').insert([
-    { npn: '8839210', first_name: 'Marcus', last_name: 'Vance', current_agency_id: agencies[2].id, original_license_date: '2012-01-15', current_agency_start_date: '2024-06-01', active_appointments_count: 3 },
-    { npn: '1234567', first_name: 'John', last_name: 'Doe', current_agency_id: null, original_license_date: '2010-05-20', current_agency_start_date: null, active_appointments_count: 2 },
-    { npn: '445123', first_name: 'Sarah', last_name: 'Jenkins', current_agency_id: agencies[1].id, original_license_date: '2016-08-10', current_agency_start_date: '2024-05-15', active_appointments_count: 4 },
-    { npn: '992812', first_name: 'David', last_name: 'Torres', current_agency_id: agencies[3].id, original_license_date: '2008-03-12', current_agency_start_date: '2024-06-05', active_appointments_count: 6 },
-    { npn: '554321', first_name: 'Emily', last_name: 'Chen', current_agency_id: agencies[4].id, original_license_date: '2018-11-01', current_agency_start_date: '2024-06-08', active_appointments_count: 1 },
-    { npn: '776543', first_name: 'Michael', last_name: 'Ross', current_agency_id: agencies[0].id, original_license_date: '2005-07-22', current_agency_start_date: '2024-06-12', active_appointments_count: 8 },
-    { npn: '332211', first_name: 'Jessica', last_name: 'Pearson', current_agency_id: agencies[1].id, original_license_date: '2014-02-14', current_agency_start_date: '2024-06-14', active_appointments_count: 5 },
+    { npn: '8839210', first_name: 'Marcus', last_name: 'Vance', current_agency_id: agencies[2].id, original_license_date: '2012-01-15', current_agency_start_date: '2024-06-01', active_appointments_count: 3, lob: 'Commercial P&C', specialty: 'Construction', estimated_premium: '$5M+' },
+    { npn: '1234567', first_name: 'John', last_name: 'Doe', current_agency_id: null, original_license_date: '2010-05-20', current_agency_start_date: null, active_appointments_count: 2, lob: 'Personal Lines', specialty: 'High Net Worth', estimated_premium: '$2M+' },
+    { npn: '445123', first_name: 'Sarah', last_name: 'Jenkins', current_agency_id: agencies[1].id, original_license_date: '2016-08-10', current_agency_start_date: '2024-05-15', active_appointments_count: 4, lob: 'Commercial P&C', specialty: 'Medical Malpractice', estimated_premium: '$3.5M+' },
+    { npn: '992812', first_name: 'David', last_name: 'Torres', current_agency_id: agencies[3].id, original_license_date: '2008-03-12', current_agency_start_date: '2024-06-05', active_appointments_count: 6, lob: 'Employee Benefits', specialty: 'Tech Startups', estimated_premium: '$8M+' },
+    { npn: '554321', first_name: 'Emily', last_name: 'Chen', current_agency_id: agencies[4].id, original_license_date: '2018-11-01', current_agency_start_date: '2024-06-08', active_appointments_count: 1, lob: 'Life & Health', specialty: 'Key Person Life', estimated_premium: '$1.5M+' },
+    { npn: '776543', first_name: 'Michael', last_name: 'Ross', current_agency_id: agencies[0].id, original_license_date: '2005-07-22', current_agency_start_date: '2024-06-12', active_appointments_count: 8, lob: 'Commercial P&C', specialty: 'Trucking & Transport', estimated_premium: '$12M+' },
+    { npn: '332211', first_name: 'Jessica', last_name: 'Pearson', current_agency_id: agencies[1].id, original_license_date: '2014-02-14', current_agency_start_date: '2024-06-14', active_appointments_count: 5, lob: 'Commercial P&C', specialty: 'Cyber Liability', estimated_premium: '$4M+' },
     // Anomaly Producers
-    { npn: '1000001', first_name: 'Robert', last_name: 'Oppenheimer', current_agency_id: agencies[5].id, original_license_date: '2001-01-01', current_agency_start_date: '2024-06-15', active_appointments_count: 12 },
-    { npn: '1000002', first_name: 'Grace', last_name: 'Hopper', current_agency_id: agencies[5].id, original_license_date: '2005-05-05', current_agency_start_date: '2024-06-15', active_appointments_count: 10 },
-    { npn: '1000003', first_name: 'Alan', last_name: 'Turing', current_agency_id: agencies[5].id, original_license_date: '2010-10-10', current_agency_start_date: '2024-06-15', active_appointments_count: 8 },
-    { npn: '1000004', first_name: 'Ada', last_name: 'Lovelace', current_agency_id: null, original_license_date: '2012-12-12', current_agency_start_date: null, active_appointments_count: 0 },
-    { npn: '1000005', first_name: 'Nikola', last_name: 'Tesla', current_agency_id: null, original_license_date: '2008-08-08', current_agency_start_date: null, active_appointments_count: 0 }
+    { npn: '1000001', first_name: 'Robert', last_name: 'Oppenheimer', current_agency_id: agencies[5].id, original_license_date: '2001-01-01', current_agency_start_date: '2024-06-15', active_appointments_count: 12, lob: 'Commercial P&C', specialty: 'Energy Sector', estimated_premium: '$25M+' },
+    { npn: '1000002', first_name: 'Grace', last_name: 'Hopper', current_agency_id: agencies[5].id, original_license_date: '2005-05-05', current_agency_start_date: '2024-06-15', active_appointments_count: 10, lob: 'Commercial P&C', specialty: 'Technology E&O', estimated_premium: '$15M+' },
+    { npn: '1000003', first_name: 'Alan', last_name: 'Turing', current_agency_id: agencies[5].id, original_license_date: '2010-10-10', current_agency_start_date: '2024-06-15', active_appointments_count: 8, lob: 'Cyber Liability', specialty: 'FinTech', estimated_premium: '$18M+' },
+    { npn: '1000004', first_name: 'Ada', last_name: 'Lovelace', current_agency_id: null, original_license_date: '2012-12-12', current_agency_start_date: null, active_appointments_count: 0, lob: 'Personal Lines', specialty: 'General', estimated_premium: '$800k' },
+    { npn: '1000005', first_name: 'Nikola', last_name: 'Tesla', current_agency_id: null, original_license_date: '2008-08-08', current_agency_start_date: null, active_appointments_count: 0, lob: 'Commercial P&C', specialty: 'Manufacturing', estimated_premium: '$2M+' }
   ]).select()
   if (proErr) throw proErr;
 

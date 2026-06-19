@@ -46,6 +46,13 @@ CREATE TABLE agencies (
     estimated_premium_volume VARCHAR(100),
     bus_factor_pct NUMERIC(5,2), -- % of carriers held by top producer
     median_producer_tenure_months INTEGER, -- To expose "Amateur Hour" rosters
+    
+    -- Ecosystem Tagging
+    is_micro BOOLEAN DEFAULT FALSE,
+    is_icp BOOLEAN DEFAULT FALSE,
+    is_enterprise BOOLEAN DEFAULT FALSE,
+    is_captive BOOLEAN DEFAULT FALSE,
+
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );

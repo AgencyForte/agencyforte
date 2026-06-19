@@ -128,7 +128,7 @@ export default function Onboarding() {
       const fetchRecommendations = async () => {
         const { data, error } = await supabase
           .from('competitor_relationships')
-          .select('*, competitor_agency:competitor_agency_id(id, agency_name, total_producers_count)')
+          .select('*, competitor_agency:agencies!competitor_agency_id(id, agency_name, total_producers_count)')
           .eq('base_agency_id', homeAgency.id)
           .order('competition_score', { ascending: false })
           .limit(5)

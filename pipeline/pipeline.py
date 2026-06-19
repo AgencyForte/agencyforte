@@ -1,17 +1,13 @@
 import os
-import time
-from datetime import datetime, timezone
+import argparse
 import polars as pl
+from datetime import datetime, timezone
+import json
 import requests
+import uuid
 
-# ==========================================
-# AGENCYFORTE PIPELINE ENGINE
-# Phase 2: The 24-Hour Polars Diff
-# ==========================================
-
-# --- LOCAL DEV SUPPORT ---
-# Attempt to load .env.local if running locally
-for env_path in ["../.env.local", ".env.local"]:
+# Load credentials
+for env_path in ["../.env.local", ".env.local", "b:/agencyforte_app/.env.local"]:
     if os.path.exists(env_path):
         with open(env_path) as f:
             for line in f:
@@ -19,225 +15,193 @@ for env_path in ["../.env.local", ".env.local"]:
                     k, v = line.strip().split("=", 1)
                     os.environ[k] = v.strip("'\"")
 
-SUPABASE_URL = os.environ.get("SUPABASE_URL") or os.environ.get("VITE_SUPABASE_URL")
-SUPABASE_KEY = os.environ.get("SUPABASE_KEY") or os.environ.get("VITE_SUPABASE_ANON_KEY")
-TDI_CSV_URL = "https://data.texas.gov/api/views/avjc-7u2m/rows.csv?accessType=DOWNLOAD"
+SUPABASE_URL = os.environ.get("VITE_SUPABASE_URL", "http://127.0.0.1:54321")
+SUPABASE_KEY = os.environ.get("VITE_SUPABASE_ANON_KEY", "sb_publishable_ACJWlzQHlZjBrEguHvfOxg_3BJgxAaH")
 
-def get_headers():
-    return {
-        "apikey": SUPABASE_KEY,
-        "Authorization": f"Bearer {SUPABASE_KEY}",
-        "Content-Type": "application/json",
-        "Prefer": "return=minimal"
-    }
+HEADERS = {
+    "apikey": SUPABASE_KEY,
+    "Authorization": f"Bearer {SUPABASE_KEY}",
+    "Content-Type": "application/json",
+    "Prefer": "return=representation"
+}
 
-def determine_region(zip_code):
-    if not zip_code or not isinstance(zip_code, str):
-        return "Unknown"
+AGENCY_FILE = "Active_insurance_company_appointments_for_agencies_and_businesses.csv"
+RELATIONSHIPS_FILE = "Business_relationships_between_agents__agencies__adjusters__and_insurance_companies.csv"
+
+def get_supabase_data():
+    print("Fetching active agencies and producers from Supabase...")
+    ag_res = requests.get(f"{SUPABASE_URL}/rest/v1/agencies?select=id,tdi_license_number", headers=HEADERS)
+    ag_data = ag_res.json() if ag_res.status_code == 200 else []
+    agency_map = {str(row["tdi_license_number"]): row["id"] for row in ag_data if "tdi_license_number" in row}
     
-    prefix = zip_code[:3]
-    if prefix in ["750", "751", "752", "753", "754", "760", "761", "762", "764", "765", "766"]:
-        return "Dallas-Fort Worth"
-    elif prefix in ["770", "772", "773", "774", "775", "778"]:
-        return "Greater Houston"
-    elif prefix in ["786", "787", "789", "765"]:
-        return "Austin / Central Texas"
-    elif prefix in ["780", "781", "782"]:
-        return "San Antonio"
-    elif prefix in ["783", "784", "785"]:
-        return "South Texas"
-    elif prefix in ["797", "798", "799", "768", "769"]:
-        return "West Texas"
-    elif prefix in ["790", "791", "792", "793", "794", "795", "796"]:
-        return "Panhandle"
-    elif prefix in ["755", "756", "757", "758", "759"]:
-        return "East Texas"
+    prod_res = requests.get(f"{SUPABASE_URL}/rest/v1/producers?select=id,npn", headers=HEADERS)
+    p_data = prod_res.json() if prod_res.status_code == 200 else []
+    producer_map = {str(row["npn"]): row["id"] for row in p_data if "npn" in row}
+    
+    car_res = requests.get(f"{SUPABASE_URL}/rest/v1/carriers?select=id,carrier_name", headers=HEADERS)
+    c_data = car_res.json() if car_res.status_code == 200 else []
+    carrier_map = {str(row["carrier_name"]): row["id"] for row in c_data if "carrier_name" in row}
+
+    return agency_map, producer_map, carrier_map
+
+def get_or_create_carrier(carrier_name, carrier_map):
+    c_name = str(carrier_name).strip()[:255]
+    if c_name in carrier_map:
+        return carrier_map[c_name]
+    
+    # Create new
+    c_id = str(uuid.uuid4())
+    res = requests.post(f"{SUPABASE_URL}/rest/v1/carriers", json={"id": c_id, "carrier_name": c_name}, headers=HEADERS)
+    if res.status_code in [200, 201]:
+        carrier_map[c_name] = c_id
+        return c_id
     else:
-        return "Other Texas"
-
-def generate_alerts(dropped_df: pl.DataFrame, added_df: pl.DataFrame):
-    alerts = []
-    today_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-
-    if not dropped_df.is_empty():
-        agency_drops = dropped_df.group_by("agency_name").agg(pl.count("agent_npn").alias("drop_count"))
-        
-        for row in dropped_df.iter_rows(named=True):
-            is_mass_termination = agency_drops.filter(pl.col("agency_name") == row["agency_name"])["drop_count"][0] > 5
-            event_type = "agency_termination" if is_mass_termination else ("defection" if row["agent_name"] else "carrier_loss")
-            
-            alerts.append({
-                "agency_name": row["agency_name"],
-                "event_type": event_type,
-                "event_date": today_str,
-                "agent_name": row["agent_name"],
-                "agent_npn": row["agent_npn"],
-                "carrier_name": row["carrier_name"],
-                "is_read": False,
-                "zip_code": row.get("zip_code", ""),
-                "region": determine_region(row.get("zip_code", ""))
-            })
-
-    if not added_df.is_empty():
-        for row in added_df.iter_rows(named=True):
-            event_type = "hire" if row["agent_name"] else "new_appt"
-            alerts.append({
-                "agency_name": row["agency_name"],
-                "event_type": event_type,
-                "event_date": today_str,
-                "agent_name": row["agent_name"],
-                "agent_npn": row["agent_npn"],
-                "carrier_name": row["carrier_name"],
-                "is_read": False,
-                "zip_code": row.get("zip_code", ""),
-                "region": determine_region(row.get("zip_code", ""))
-            })
-
-    return alerts
+        print(f"Error creating carrier {c_name}: {res.text}")
+        return None
 
 def main():
+    parser = argparse.ArgumentParser(description="AgencyForte Data Pipeline Engine")
+    parser.add_argument("--day1", required=True, help="Path to the Day 1 (Yesterday) dataset folder")
+    parser.add_argument("--day2", required=True, help="Path to the Day 2 (Today) dataset folder")
+    args = parser.parse_args()
+
     print(f"[{datetime.now(timezone.utc).isoformat()}] STARTING AGENCYFORTE PIPELINE")
     
-    if not SUPABASE_URL or not SUPABASE_KEY:
-        print("CRITICAL ERROR: Supabase credentials not found in environment variables.")
+    agency_map, producer_map, carrier_map = get_supabase_data()
+    active_agency_npns = list(agency_map.keys())
+    
+    if not active_agency_npns:
+        print("Error: No active agencies found in Supabase. Run msa_ingestor.py first.")
         return
 
-    # --- STEP 1: EXTRACT TDI DATA ---
-    print("[1/5] Downloading today's TDI Active Appointments snapshot...")
-    try:
-        local_csv_path = "../Active_insurance_company_appointments_for_agencies_and_businesses.csv"
-        if os.path.exists(local_csv_path):
-            print("      Found local dataset CSV in repository! Loading directly from disk...")
-            today_df = pl.read_csv(local_csv_path, ignore_errors=True)
-        elif os.path.exists("Active_insurance_company_appointments_for_agencies_and_businesses.csv"):
-            print("      Found local dataset CSV in current directory! Loading directly from disk...")
-            today_df = pl.read_csv("Active_insurance_company_appointments_for_agencies_and_businesses.csv", ignore_errors=True)
-        else:
-            print("      Downloading from TDI Data Portal (bypassing bot block)...")
-            import urllib.request
-            req = urllib.request.Request(TDI_CSV_URL, headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'})
-            with urllib.request.urlopen(req) as response:
-                with open("temp_tdi.csv", "wb") as out_file:
-                    out_file.write(response.read())
-            today_df = pl.read_csv("temp_tdi.csv", ignore_errors=True)
-            
-        today_df = today_df.rename({
-            "Agency name": "agency_name",
-            "Agency NPN": "agent_npn",
-            "Insurance company name": "carrier_name",
-            "Appointment active date": "appointment_date",
-            "Appointment type": "lines",
-            "Postal code": "zip_code"
-        }, strict=False)
-        
-        # We need an agent_name column even though it doesn't exist in this dataset, for the UI
-        today_df = today_df.with_columns(pl.lit("").alias("agent_name"))
-        
-        print(f"      Loaded {len(today_df)} active appointments.")
-    except Exception as e:
-        print(f"      Failed to download/load TDI data: {e}. Creating mock today_df for pipeline testing.")
-        today_df = pl.DataFrame({
-            "agent_npn": ["111", "222"],
-            "agent_name": ["", ""],
-            "agency_name": ["Smith & Co Insurance", "Apex Commercial Group"],
-            "carrier_name": ["CHUBB", "TRAVELERS"],
-            "appointment_date": ["2020-01-01", "2021-05-15"],
-            "lines": ["P&C", "P&C"],
-            "zip_code": ["77002", "77002"]
-        })
+    print(f"Targeting {len(active_agency_npns)} active agencies in the MVP ecosystem.")
 
-    # --- STEP 2: LOAD YESTERDAY'S CSV ---
-    print("[2/5] Loading yesterday's snapshot from local cache...")
-    if not os.path.exists("yesterday_tdi.csv"):
-        print("      No previous data found (Day 1). Creating empty dataframe.")
-        yesterday_df = pl.DataFrame(schema=today_df.schema)
-    else:
-        try:
-            yesterday_df = pl.read_csv("yesterday_tdi.csv", ignore_errors=True)
-            # Ensure schema matches
-            for col in today_df.columns:
-                if col not in yesterday_df.columns:
-                    yesterday_df = yesterday_df.with_columns(pl.lit("").alias(col))
-            print(f"      Loaded {len(yesterday_df)} appointments from yesterday.")
-        except Exception as e:
-            print(f"      Failed to load yesterday's data: {e}. Falling back to empty.")
-            yesterday_df = pl.DataFrame(schema=today_df.schema)
+    today_str = datetime.now().strftime("%Y-%m-%d")
 
-    # Force join keys to string to avoid ComputeError when comparing mocked ints to real strings
-    today_df = today_df.with_columns(pl.col("agent_npn").cast(pl.Utf8), pl.col("carrier_name").cast(pl.Utf8))
-    yesterday_df = yesterday_df.with_columns(pl.col("agent_npn").cast(pl.Utf8), pl.col("carrier_name").cast(pl.Utf8))
+    # --- 1. Roster Diff ---
+    print("\n[1/2] Executing Roster Diff...")
+    d1_rel = pl.read_csv(os.path.join(args.day1, RELATIONSHIPS_FILE), infer_schema_length=0)
+    d2_rel = pl.read_csv(os.path.join(args.day2, RELATIONSHIPS_FILE), infer_schema_length=0)
 
-    # --- STEP 3: THE ANTI-JOIN DIFF ---
-    print("[3/5] Executing Polars Anti-Join Diff Engine...")
-    dropped_df = yesterday_df.join(today_df, on=["agent_npn", "carrier_name"], how="anti")
-    added_df = today_df.join(yesterday_df, on=["agent_npn", "carrier_name"], how="anti")
-    print(f"      Found {len(dropped_df)} dropped appointments (Exits/Losses).")
-    print(f"      Found {len(added_df)} new appointments (Hires/Gains).")
+    d1_rel = d1_rel.filter(pl.col("Associated licensee NPN").is_in(active_agency_npns))
+    d2_rel = d2_rel.filter(pl.col("Associated licensee NPN").is_in(active_agency_npns))
 
-    # --- STEP 4: GENERATE AND PUSH ALERTS ---
-    print("[4/5] Generating tactical alerts and pushing to Supabase...")
+    d1_rel = d1_rel.filter(pl.col("Associated licensee NPN").is_not_null() & pl.col("Licensee NPN").is_not_null())
+    d2_rel = d2_rel.filter(pl.col("Associated licensee NPN").is_not_null() & pl.col("Licensee NPN").is_not_null())
+
+    defections = d1_rel.join(d2_rel, on=["Associated licensee NPN", "Licensee NPN"], how="anti")
+    hires = d2_rel.join(d1_rel, on=["Associated licensee NPN", "Licensee NPN"], how="anti")
+
+    active_producer_npns = list(producer_map.keys())
+    defections = defections.filter(pl.col("Licensee NPN").is_in(active_producer_npns))
+    hires = hires.filter(pl.col("Licensee NPN").is_in(active_producer_npns))
+
+    # --- 2. Carrier Diff ---
+    print("\n[2/2] Executing Carrier Diff (New Markets / Carrier Loss)...")
+    d1_ag = pl.read_csv(os.path.join(args.day1, AGENCY_FILE), infer_schema_length=0)
+    d2_ag = pl.read_csv(os.path.join(args.day2, AGENCY_FILE), infer_schema_length=0)
+
+    d1_ag = d1_ag.filter(pl.col("Agency NPN").is_in(active_agency_npns))
+    d2_ag = d2_ag.filter(pl.col("Agency NPN").is_in(active_agency_npns))
+
+    d1_ag = d1_ag.filter(pl.col("Agency NPN").is_not_null() & pl.col("NAIC ID").is_not_null())
+    d2_ag = d2_ag.filter(pl.col("Agency NPN").is_not_null() & pl.col("NAIC ID").is_not_null())
+
+    losses = d1_ag.join(d2_ag, on=["Agency NPN", "NAIC ID"], how="anti")
+    new_appts = d2_ag.join(d1_ag, on=["Agency NPN", "NAIC ID"], how="anti")
+
+    # --- Output Results ---
+    print("\n================ PIPELINE RESULTS ================")
+    print(f"Defections:      {len(defections)}")
+    print(f"Hires:           {len(hires)}")
+    print(f"Carrier Losses:  {len(losses)}")
+    print(f"New Markets:     {len(new_appts)}")
+    print("==================================================\n")
+
+    print("\n[3/3] Calculating Producers Affected by Carrier Events...")
+    PRODUCERS_FILE = "Active_insurance_company_appointments_for_agents_and_adjusters.csv"
     
-    # Do NOT generate 600k false alerts on Day 1!
-    if not os.path.exists("yesterday_tdi.csv") or yesterday_df.is_empty():
-        print("      Day 1 Baseline Detected: Skipping alert generation. Only directory will be built.")
-        alerts = []
-    else:
-        alerts = generate_alerts(dropped_df, added_df)
+    # Load Day 1 agent appointments to see who lost what
+    d1_prods = pl.read_csv(os.path.join(args.day1, PRODUCERS_FILE), infer_schema_length=0)
+    if "Agent NPN" in d1_prods.columns:
+        d1_prods = d1_prods.rename({"Agent NPN": "Licensee NPN"})
+    d1_merged = d1_rel.join(d1_prods, on="Licensee NPN", how="inner")
+    d1_impact = d1_merged.group_by(["Associated licensee NPN", "Insurance company name"]).agg(pl.count("Licensee NPN").alias("affected_count"))
+    d1_impact_dict = {(str(row["Associated licensee NPN"]), str(row["Insurance company name"])): row["affected_count"] for row in d1_impact.to_dicts()}
+
+    # Load Day 2 agent appointments to see who gained what
+    d2_prods = pl.read_csv(os.path.join(args.day2, PRODUCERS_FILE), infer_schema_length=0)
+    if "Agent NPN" in d2_prods.columns:
+        d2_prods = d2_prods.rename({"Agent NPN": "Licensee NPN"})
+    d2_merged = d2_rel.join(d2_prods, on="Licensee NPN", how="inner")
+    d2_impact = d2_merged.group_by(["Associated licensee NPN", "Insurance company name"]).agg(pl.count("Licensee NPN").alias("affected_count"))
+    d2_impact_dict = {(str(row["Associated licensee NPN"]), str(row["Insurance company name"])): row["affected_count"] for row in d2_impact.to_dicts()}
+
+    movements_payload = []
     
-    if alerts:
-        try:
-            chunk_size = 500
-            for i in range(0, len(alerts), chunk_size):
-                chunk = alerts[i:i + chunk_size]
-                post_res = requests.post(f"{SUPABASE_URL}/rest/v1/tripwire_alerts", json=chunk, headers=get_headers())
-                post_res.raise_for_status()
-            print(f"      Successfully pushed {len(alerts)} alerts.")
-        except Exception as e:
-            print(f"      Error pushing alerts: {e}")
-            if 'post_res' in locals(): print(post_res.text)
-    else:
-        print("      No alerts generated today. Market is stable.")
+    # Process Producers
+    for row in defections.to_dicts():
+        p_id = producer_map.get(str(row["Licensee NPN"]))
+        from_ag = agency_map.get(str(row["Associated licensee NPN"]))
+        if p_id and from_ag:
+            movements_payload.append({"producer_id": p_id, "from_agency_id": from_ag, "movement_date": today_str, "movement_type": "EXITED"})
 
-    # --- STEP 5: COMPUTE AND PUSH AGENCY DIRECTORY ---
-    print("[5/5] Aggregating Market Directory and saving state...")
-    try:
-        # Create regions for all rows using the fast map functionality
-        today_df = today_df.with_columns(
-            pl.col("zip_code").map_elements(determine_region, return_dtype=pl.Utf8).alias("region")
-        )
-        
-        # Aggregate directory
-        dir_df = today_df.group_by(["agency_name", "region"]).agg(pl.n_unique("agent_npn").alias("total_producers"))
-        
-        # Drop agencies with NULL/blank names
-        dir_df = dir_df.filter(pl.col("agency_name").is_not_null() & (pl.col("agency_name") != ""))
-        
-        # Delete old directory in Supabase
-        print("      Deleting old directory...")
-        del_res = requests.delete(f"{SUPABASE_URL}/rest/v1/agency_directory?agency_name=neq.0000", headers=get_headers())
-        del_res.raise_for_status()
+    for row in hires.to_dicts():
+        p_id = producer_map.get(str(row["Licensee NPN"]))
+        to_ag = agency_map.get(str(row["Associated licensee NPN"]))
+        if p_id and to_ag:
+            movements_payload.append({"producer_id": p_id, "to_agency_id": to_ag, "movement_date": today_str, "movement_type": "HIRED"})
 
-        # Push new directory in chunks
-        dir_dicts = dir_df.to_dicts()
-        chunk_size = 100
-        print(f"      Pushing {len(dir_dicts)} agencies in chunks of {chunk_size}...")
-        for i in range(0, len(dir_dicts), chunk_size):
-            chunk = dir_dicts[i:i + chunk_size]
-            post_res = requests.post(f"{SUPABASE_URL}/rest/v1/agency_directory", json=chunk, headers=get_headers())
-            post_res.raise_for_status()
-            time.sleep(0.1)
-            
-        print(f"      Successfully pushed {len(dir_dicts)} unique agencies to directory.")
+    def chunked_post(url, data):
+        for i in range(0, len(data), 500):
+            res = requests.post(url, json=data[i:i+500], headers=HEADERS)
+            if res.status_code not in [200, 201, 204]:
+                print(f"Failed to push chunk to {url}: {res.text}")
 
-        # Save today's CSV for tomorrow
-        today_df.write_csv("yesterday_tdi.csv")
-        print("      Saved yesterday_tdi.csv for tomorrow's diff.")
+    if movements_payload:
+        print(f"Pushing {len(movements_payload)} movements...")
+        chunked_post(f"{SUPABASE_URL}/rest/v1/producer_movements", movements_payload)
 
-    except Exception as e:
-        print(f"      Error in step 5: {e}")
-        if 'post_res' in locals() and hasattr(post_res, 'text'): print(post_res.text)
+    events_payload = []
+    
+    # Process Carriers
+    for row in losses.to_dicts():
+        ag_npn = str(row["Agency NPN"])
+        c_name = str(row["Insurance company name"])
+        affected = d1_impact_dict.get((ag_npn, c_name), 0)
+        ag_id = agency_map.get(ag_npn)
+        if ag_id:
+            c_id = get_or_create_carrier(c_name, carrier_map)
+            if c_id:
+                events_payload.append({
+                    "agency_id": ag_id,
+                    "carrier_id": c_id,
+                    "event_type": "APPOINTMENT_LOST",
+                    "event_date": today_str,
+                    "producers_affected_count": affected
+                })
 
-    print(f"[{datetime.now(timezone.utc).isoformat()}] PIPELINE COMPLETE.")
+    for row in new_appts.to_dicts():
+        ag_npn = str(row["Agency NPN"])
+        c_name = str(row["Insurance company name"])
+        affected = d2_impact_dict.get((ag_npn, c_name), 0)
+        ag_id = agency_map.get(ag_npn)
+        if ag_id:
+            c_id = get_or_create_carrier(c_name, carrier_map)
+            if c_id:
+                events_payload.append({
+                    "agency_id": ag_id,
+                    "carrier_id": c_id,
+                    "event_type": "APPOINTMENT_GAINED",
+                    "event_date": today_str,
+                    "producers_affected_count": affected
+                })
+
+    if events_payload:
+        print(f"Pushing {len(events_payload)} carrier events...")
+        chunked_post(f"{SUPABASE_URL}/rest/v1/carrier_events", events_payload)
+
+    print("Pipeline push complete.")
 
 if __name__ == "__main__":
     main()
