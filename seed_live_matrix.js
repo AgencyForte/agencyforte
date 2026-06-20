@@ -30,10 +30,7 @@ async function seedMatrix() {
     });
     uniqueCities.add(icp.icp_details.city);
 
-    // We don't need to insert all 1,862 competitors for every single ICP, that would crash local DB.
-    // Let's just insert the Top 50 competitors for each ICP to keep it lean but realistic.
-    const topCompetitors = icp.competitors.slice(0, 50);
-    for (const comp of topCompetitors) {
+    for (const comp of icp.competitors) {
       if (!uniqueAgencies.has(comp.npn)) {
         uniqueAgencies.set(comp.npn, {
           ...comp,
@@ -49,6 +46,9 @@ async function seedMatrix() {
   // 2. Clear old data
   console.log('Clearing old mock data...');
   await supabase.from('competitor_relationships').delete().neq('id', 'dummy');
+  await supabase.from('producer_movements').delete().neq('id', 'dummy');
+  await supabase.from('carrier_events').delete().neq('id', 'dummy');
+  await supabase.from('agency_carrier_appointments').delete().neq('id', 'dummy');
   await supabase.from('agencies').delete().neq('id', 'dummy');
   await supabase.from('locations').delete().neq('id', 'dummy');
 
@@ -88,7 +88,18 @@ async function seedMatrix() {
 
   // Fetch all inserted agencies to map NPN -> UUID
   console.log('Mapping NPNs to Database UUIDs...');
-  const { data: insertedAgencies } = await supabase.from('agencies').select('id, tdi_license_number');
+  const insertedAgencies = [];
+  let fromIdx = 0;
+  let toIdx = 999;
+  while (true) {
+    const { data } = await supabase.from('agencies').select('id, tdi_license_number').range(fromIdx, toIdx);
+    if (!data || data.length === 0) break;
+    insertedAgencies.push(...data);
+    if (data.length < 1000) break;
+    fromIdx += 1000;
+    toIdx += 1000;
+  }
+  
   const npnToUuid = new Map();
   insertedAgencies.forEach(a => npnToUuid.set(a.tdi_license_number, a.id));
 
@@ -100,9 +111,8 @@ async function seedMatrix() {
     const baseId = npnToUuid.get(icp.icp_details.npn);
     if (!baseId) continue;
 
-    // Insert Top 10 competitors for the DB so the UI has exactly what it needs
-    const top10 = icp.competitors.slice(0, 10);
-    for (const comp of top10) {
+    // Insert ALL competitors for the DB so the UI has everything
+    for (const comp of icp.competitors) {
       const compId = npnToUuid.get(comp.npn);
       if (!compId) continue;
 
@@ -111,14 +121,14 @@ async function seedMatrix() {
         competitor_agency_id: compId,
         competition_score: comp.fit_score,
         overlap_carriers_count: comp.shared_carriers,
-        distance_miles: 0 // We didn't calc miles, geography was baked into score
+        distance_miles: 0 
       });
     }
   }
 
   for (let i = 0; i < relsToInsert.length; i += BATCH_SIZE) {
     const batch = relsToInsert.slice(i, i + BATCH_SIZE);
-    const { error: relErr } = await supabase.from('competitor_relationships').insert(batch);
+    const { error: relErr } = await supabase.from('competitor_relationships').upsert(batch, { onConflict: 'base_agency_id,competitor_agency_id' });
     if (relErr) { console.error('Rel Insert Error:', relErr); return; }
   }
 
