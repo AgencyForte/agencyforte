@@ -7,7 +7,7 @@ export default function Dashboard() {
   const location = useLocation()
   const USER_EMAIL = location.state?.email || 'principal@agencyforte.com'
 
-  const [activeTab, setActiveTab] = useState('executive')
+  const [activeTab, setActiveTab] = useState('producers')
   const [configModalOpen, setConfigModalOpen] = useState(false)
   const [configTitle, setConfigTitle] = useState('')
   const [openTrays, setOpenTrays] = useState({})
@@ -22,7 +22,11 @@ export default function Dashboard() {
   const [filterNpn, setFilterNpn] = useState('')
   const [filterSpecialty, setFilterSpecialty] = useState('')
   const [filterAgency, setFilterAgency] = useState('')
-
+  const [filterVector, setFilterVector] = useState('')
+  const [filterFitScore, setFilterFitScore] = useState('')
+  const [filterMinRevenue, setFilterMinRevenue] = useState('')
+  const [filterMinTenure, setFilterMinTenure] = useState('')
+  const [principalCarriers, setPrincipalCarriers] = useState([])
   const [showTerminateModal, setShowTerminateModal] = useState(false)
 
   const initRegion = localStorage.getItem('market_region');
@@ -69,7 +73,7 @@ export default function Dashboard() {
       try {
         let { data: userData, error: userErr } = await supabase
           .from('users')
-          .select('id, home_agency_id, home_agency:agencies!home_agency_id(agency_name, total_producers_count, category, location:locations(msa, city))')
+          .select('id, home_agency_id, home_agency:agencies!home_agency_id(agency_name, total_producers_count, category, location:locations(msa, city), agency_carrier_appointments(carrier:carriers(carrier_name)))')
           .eq('email', USER_EMAIL)
           .single()
 
@@ -77,7 +81,7 @@ export default function Dashboard() {
           console.warn(`User fetch failed for ${USER_EMAIL}. Falling back to principal@agencyforte.com...`)
           const fallback = await supabase
             .from('users')
-            .select('id, home_agency_id, home_agency:agencies!home_agency_id(agency_name, total_producers_count, category, location:locations(msa, city))')
+            .select('id, home_agency_id, home_agency:agencies!home_agency_id(agency_name, total_producers_count, category, location:locations(msa, city), agency_carrier_appointments(carrier:carriers(carrier_name)))')
             .eq('email', 'principal@agencyforte.com')
             .single()
 
@@ -90,6 +94,11 @@ export default function Dashboard() {
         }
         const userId = userData.id
         setCurrentUserId(userId)
+        
+        if (userData.home_agency?.agency_carrier_appointments) {
+          const pCarriers = userData.home_agency.agency_carrier_appointments.map(a => a.carrier?.carrier_name).filter(Boolean);
+          setPrincipalCarriers(pCarriers);
+        }
 
         // Fetch tracked producers
         const { data: tpData } = await supabase
@@ -949,14 +958,7 @@ export default function Dashboard() {
 
         <div className="nav-group">
           <nav className="sidebar-nav">
-            <button
-              className={`stealth-toggle ${activeTab === 'executive' ? 'active' : ''}`}
-              onClick={() => setActiveTab('executive')}
-              style={{ width: '90%', justifyContent: 'flex-start', margin: '0.3rem 0', padding: '0.4rem 0.8rem' }}
-            >
-              <span className="toggle-indicator"></span>
-              COMMAND CENTER
-            </button>
+
             <button
               className={`stealth-toggle ${activeTab === 'inbox' ? 'active' : ''}`}
               onClick={() => setActiveTab('inbox')}
@@ -971,16 +973,7 @@ export default function Dashboard() {
               style={{ width: '90%', justifyContent: 'flex-start', margin: '0.3rem 0', padding: '0.4rem 0.8rem' }}
             >
               <span className="toggle-indicator"></span>
-              PRODUCERS
-            </button>
-
-            <button
-              className={`stealth-toggle ${activeTab === 'movements' ? 'active' : ''}`}
-              onClick={() => setActiveTab('movements')}
-              style={{ width: '90%', justifyContent: 'flex-start', margin: '0.3rem 0', padding: '0.4rem 0.8rem' }}
-            >
-              <span className="toggle-indicator"></span>
-              MARKET TRENDS
+              TALENT RADAR
             </button>
           </nav>
         </div>
@@ -1204,51 +1197,6 @@ export default function Dashboard() {
               </div>
             </div>
 
-            {activeTab === 'movements' && threatFeed && (
-              <div className="threat-feed-container" style={{ borderRadius: '4px', height: '75vh', overflowY: 'auto', marginBottom: '2rem', marginTop: '1.5rem', paddingRight: '10px', paddingBottom: '3rem' }}>
-                <div style={{ marginBottom: '1.5rem', paddingBottom: '1rem', borderBottom: '1px dashed rgba(255, 255, 255, 0.1)', color: 'var(--text-muted)', fontSize: '0.65rem', letterSpacing: '2px', display: 'flex', justifyContent: 'space-between', fontFamily: 'var(--font-mono)' }}>
-                  <span>SYSTEM LOG // MACRO TRENDS ANOMALY DETECTOR</span>
-                  <span>STATUS: ACTIVE</span>
-                </div>
-                {threatFeed.length === 0 ? (
-                  <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>NO ANOMALIES DETECTED FOR CURRENT PARAMETERS.</div>
-                ) : (
-                  threatFeed.map((event, i) => (
-                    <div className="event-card" key={i} style={{ '--event-color': event.color }}>
-                      <div className="event-card-header">
-                        <div className="event-card-header-left">
-                          <span className="event-type" style={{ color: event.color }}>[{event.type}]</span>
-                          <span className="event-agency">{event.agencyName}</span>
-                        </div>
-                        <span className="event-time">{event.time}</span>
-                      </div>
-                      <div className="event-card-body">
-                        <div className="event-row">
-                          <span className="event-label">Fact:</span>
-                          <span className="event-value">{event.fact}</span>
-                        </div>
-                        <div className="event-row">
-                          <span className="event-label">Why it matters:</span>
-                          <span className="event-value">{event.why}</span>
-                        </div>
-                        <div className="event-row">
-                          <span className="event-label">Exposure:</span>
-                          <span className="event-value">{event.exposure}</span>
-                        </div>
-                        <div className="event-row">
-                          <span className="event-label">Recommended play:</span>
-                          <span className="event-value action-value">{event.play}</span>
-                        </div>
-                        <div className="event-row">
-                          <span className="event-label">Confidence:</span>
-                          <span className="event-value" style={{ color: 'var(--text-muted)' }}>{event.confidence}</span>
-                        </div>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            )}
 
             {loading ? (
               <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>
@@ -1257,105 +1205,7 @@ export default function Dashboard() {
               </div>
             ) : (
               <>
-                {(activeTab === 'executive') && (
-                  <div className="executive-container" style={{ animation: 'fade-in 0.3s ease-out' }}>
 
-                    {/* KPI Strip */}
-                    <div style={{ display: 'flex', gap: '1rem', marginBottom: '2rem', flexWrap: 'wrap' }}>
-                      <div className="kpi-card" style={{ flex: 1, minWidth: '120px', background: 'rgba(255,255,255,0.02)', padding: '1rem', borderRadius: '4px', border: '1px solid rgba(255,255,255,0.05)' }}>
-                        <span style={{ display: 'block', fontSize: '0.6rem', fontFamily: 'var(--font-mono)', color: 'var(--text-muted)', letterSpacing: '2px', marginBottom: '0.3rem' }}>TRACKED THREATS</span>
-                        <span style={{ fontSize: '1.5rem', fontFamily: 'var(--font-heading)', color: '#FFF' }}>{Object.keys(watchlistData).length}</span>
-                      </div>
-                      <div className="kpi-card" style={{ flex: 1, minWidth: '120px', background: 'rgba(255,255,255,0.02)', padding: '1rem', borderRadius: '4px', border: '1px solid rgba(255,255,255,0.05)' }}>
-                        <span style={{ display: 'block', fontSize: '0.6rem', fontFamily: 'var(--font-mono)', color: 'var(--text-muted)', letterSpacing: '2px', marginBottom: '0.3rem' }}>TRACKED TALENT</span>
-                        <span style={{ fontSize: '1.5rem', fontFamily: 'var(--font-heading)', color: '#FFF' }}>{trackedProducerIds.length}</span>
-                      </div>
-                      <div className="kpi-card" style={{ flex: 1, minWidth: '120px', background: 'rgba(255,255,255,0.02)', padding: '1rem', borderRadius: '4px', border: '1px solid rgba(255,255,255,0.05)' }}>
-                        <span style={{ display: 'block', fontSize: '0.6rem', fontFamily: 'var(--font-mono)', color: 'var(--text-muted)', letterSpacing: '2px', marginBottom: '0.3rem' }}>MSA VELOCITY (30D)</span>
-                        <span style={{ fontSize: '1.5rem', fontFamily: 'var(--font-heading)', color: 'var(--accent-blue)' }}>{executiveInsights.velocity}</span>
-                      </div>
-                    </div>
-
-                    <div style={{ display: 'flex', gap: '2rem', flexWrap: 'wrap' }}>
-                      {/* Left Col: Alerts Feed */}
-                      <div style={{ flex: 2, minWidth: '350px' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '0.5rem' }}>
-                          <h2 style={{ fontSize: '0.85rem', fontFamily: 'var(--font-heading)', color: '#FFF', margin: 0, letterSpacing: '1px' }}>ACTIVE ANOMALIES & THREATS</h2>
-                          <span style={{ fontSize: '0.6rem', color: 'var(--accent-red)', fontFamily: 'var(--font-mono)' }}>LIVE FEED</span>
-                        </div>
-
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                          {executiveInsights.alerts.length === 0 ? (
-                            <div style={{ padding: '1rem', textAlign: 'center', color: 'var(--text-muted)', border: '1px dashed rgba(255,255,255,0.1)', fontSize: '0.75rem' }}>
-                              No active anomalies detected in current region.
-                            </div>
-                          ) : (
-                            executiveInsights.alerts.map((alert, idx) => (
-                              <div key={idx} style={{
-                                background: 'rgba(10, 14, 23, 0.8)',
-                                borderLeft: `2px solid ${alert.type === 'CRITICAL' ? 'var(--accent-red)' : alert.type === 'WARNING' ? '#D97706' : 'var(--accent-blue)'}`,
-                                padding: '0.8rem 1rem',
-                                borderRadius: '0 4px 4px 0',
-                                boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
-                              }}>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.2rem' }}>
-                                  <span style={{ fontSize: '0.6rem', fontFamily: 'var(--font-mono)', letterSpacing: '1px', color: alert.type === 'CRITICAL' ? 'var(--accent-red)' : alert.type === 'WARNING' ? '#D97706' : 'var(--accent-blue)' }}>
-                                    {alert.title}
-                                  </span>
-                                  <span style={{ fontSize: '0.55rem', color: 'var(--text-muted)' }}>JUST NOW</span>
-                                </div>
-                                <div style={{ fontSize: '0.85rem', color: '#FFF', fontWeight: 'bold', marginBottom: '0.2rem' }}>{alert.target}</div>
-                                <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>{alert.detail}</div>
-                              </div>
-                            ))
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Right Col: Momentum */}
-                      <div style={{ flex: 1, minWidth: '250px' }}>
-                        <div style={{ marginBottom: '1rem', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '0.5rem' }}>
-                          <h2 style={{ fontSize: '0.85rem', fontFamily: 'var(--font-heading)', color: '#FFF', margin: 0, letterSpacing: '1px' }}>REGIONAL MOMENTUM</h2>
-                        </div>
-
-                        <div style={{ marginBottom: '1.5rem' }}>
-                          <span style={{ display: 'block', fontSize: '0.6rem', color: 'var(--accent-green)', fontFamily: 'var(--font-mono)', marginBottom: '0.5rem', letterSpacing: '1px' }}>▲ TOP GROWING AGENCIES</span>
-                          {executiveInsights.growingAgencies.length === 0 ? (
-                            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>No growth detected.</div>
-                          ) : (
-                            executiveInsights.growingAgencies.map((ag, idx) => (
-                              <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem', background: 'rgba(255,255,255,0.02)', padding: '0.4rem 0.6rem', borderRadius: '4px' }}>
-                                <div>
-                                  <div style={{ fontSize: '0.75rem', color: '#FFF' }}>{ag.name}</div>
-                                  <div style={{ fontSize: '0.6rem', color: 'var(--text-muted)' }}>{ag.city}</div>
-                                </div>
-                                <span style={{ color: 'var(--accent-green)', fontFamily: 'var(--font-mono)', fontSize: '0.75rem' }}>+{ag.net}</span>
-                              </div>
-                            ))
-                          )}
-                        </div>
-
-                        <div>
-                          <span style={{ display: 'block', fontSize: '0.6rem', color: 'var(--accent-red)', fontFamily: 'var(--font-mono)', marginBottom: '0.5rem', letterSpacing: '1px' }}>▼ MASS EXODUS AGENCIES</span>
-                          {executiveInsights.bleedingAgencies.length === 0 ? (
-                            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>No major losses detected.</div>
-                          ) : (
-                            executiveInsights.bleedingAgencies.map((ag, idx) => (
-                              <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem', background: 'rgba(255,255,255,0.02)', padding: '0.4rem 0.6rem', borderRadius: '4px' }}>
-                                <div>
-                                  <div style={{ fontSize: '0.75rem', color: '#FFF' }}>{ag.name}</div>
-                                  <div style={{ fontSize: '0.6rem', color: 'var(--text-muted)' }}>{ag.city}</div>
-                                </div>
-                                <span style={{ color: 'var(--accent-red)', fontFamily: 'var(--font-mono)', fontSize: '0.75rem' }}>{ag.net}</span>
-                              </div>
-                            ))
-                          )}
-                        </div>
-
-                      </div>
-                    </div>
-                  </div>
-                )}
 
                 {(activeTab === 'inbox') && (
                   <div className="competitors-container" style={{ marginTop: '0', paddingBottom: '3rem' }}>
@@ -1614,204 +1464,411 @@ export default function Dashboard() {
               </>
             )}
 
-            {!loading && activeTab === 'producers' && (
-              <div className="directory-container" style={{ marginTop: '1.5rem', paddingBottom: '3rem' }}>
-                <div className="directory-table-wrapper" style={{ overflowX: 'auto' }}>
-                  <table className="directory-table" style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.8rem' }}>
-                    <thead>
-                      <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.1)', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
-                        <th style={{ padding: '0.8rem', fontWeight: 'normal', verticalAlign: 'bottom' }}>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                            <span>PRODUCER NAME</span>
-                            <input
-                              type="text"
-                              placeholder="Search..."
-                              value={filterName}
-                              onChange={e => setFilterName(e.target.value)}
-                              style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: '#FFF', padding: '0.4rem', fontSize: '0.7rem', borderRadius: '2px', width: '100%', outline: 'none' }}
-                            />
-                          </div>
-                        </th>
-                        <th style={{ padding: '0.8rem', fontWeight: 'normal', verticalAlign: 'bottom' }}>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                            <span>NPN</span>
-                            <input
-                              type="text"
-                              placeholder="Search..."
-                              value={filterNpn}
-                              onChange={e => setFilterNpn(e.target.value)}
-                              style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: '#FFF', padding: '0.4rem', fontSize: '0.7rem', borderRadius: '2px', width: '100%', outline: 'none' }}
-                            />
-                          </div>
-                        </th>
-                        <th style={{ padding: '0.8rem', fontWeight: 'normal', verticalAlign: 'bottom' }}>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                            <span>LOB / SPECIALTY</span>
-                            <select
-                              value={filterSpecialty}
-                              onChange={e => setFilterSpecialty(e.target.value)}
-                              style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: '#FFF', padding: '0.4rem', fontSize: '0.7rem', borderRadius: '2px', width: '100%', outline: 'none' }}
-                            >
-                              <option value="">All Specialties</option>
-                              <option value="Commercial">Commercial</option>
-                              <option value="Benefits">Employee Benefits</option>
-                              <option value="Life">Life &amp; Health</option>
-                              <option value="Personal">Personal Lines</option>
-                              <option value="Agriculture">Agriculture</option>
-                              <option value="Surety">Surety / Bonds</option>
-                            </select>
-                          </div>
-                        </th>
-                        <th style={{ padding: '0.8rem', fontWeight: 'normal', verticalAlign: 'bottom' }}>EST. PREMIUM</th>
-                        {producerFilter === 'DEFECTIONS' ? (
-                          <>
-                            <th style={{ padding: '0.8rem', fontWeight: 'normal', verticalAlign: 'bottom' }}>PREVIOUS AGENCY</th>
-                            <th style={{ padding: '0.8rem', fontWeight: 'normal', verticalAlign: 'bottom' }}>
-                              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                                <span>DESTINATION</span>
-                                <input
-                                  type="text"
-                                  placeholder="Search..."
-                                  value={filterAgency}
-                                  onChange={e => setFilterAgency(e.target.value)}
-                                  style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: '#FFF', padding: '0.4rem', fontSize: '0.7rem', borderRadius: '2px', width: '100%', outline: 'none' }}
-                                />
+            {!loading && activeTab === 'producers' && (() => {
+              const augmentedProducers = registryProducers.map(p => {
+                const agName = p.current_agency?.agency_name || p.previous_agency;
+                const mData = agName && marketData[agName] ? marketData[agName] : null;
+                let flightRisk = 'Low';
+                let flightRiskColor = 'var(--text-muted)';
+                let trigger = null;
+                let triggerPlay = null;
+
+                const formatRelativeTime = (dateStr) => {
+                  if (!dateStr) return 'recently';
+                  const days = Math.floor((new Date() - new Date(dateStr)) / (1000 * 60 * 60 * 24));
+                  if (days === 0) return 'today';
+                  if (days === 1) return 'yesterday';
+                  if (days < 7) return `${days} days ago`;
+                  if (days < 30) return `${Math.floor(days / 7)} weeks ago`;
+                  if (days < 365) return `${Math.floor(days / 30)} months ago`;
+                  return `${Math.floor(days / 365)} years ago`;
+                };
+
+                if (mData) {
+                  if (mData.agency_termination && mData.agency_termination.length > 0) {
+                    trigger = 'CARRIER SQUEEZE';
+                    flightRisk = 'High';
+                    flightRiskColor = 'var(--accent-red)';
+                    
+                    const lostCarriersData = mData.agency_termination.map(e => ({ name: e.carrier?.carrier_name, date: e.event_date })).filter(e => e.name);
+                    const lostCarriers = lostCarriersData.map(e => e.name).join(', ');
+                    const latestDate = lostCarriersData.length > 0 ? lostCarriersData.reduce((a, b) => new Date(a.date) > new Date(b.date) ? a : b).date : null;
+                    const relTime = formatRelativeTime(latestDate);
+                    
+                    triggerPlay = {
+                       fact: `${agName} lost their appointment with ${lostCarriers} ${relTime}.`,
+                       play: `Offer immediate placement options to roll their displaced ${lostCarriers} book.`
+                    };
+                  } else if (mData.carrier_loss && mData.carrier_loss.length > 0) {
+                    trigger = 'CARRIER ATTRITION';
+                    flightRisk = 'Medium';
+                    flightRiskColor = '#F59E0B';
+                    
+                    const attrCarriersData = mData.carrier_loss.map(e => ({ name: e.carrier?.carrier_name, date: e.event_date })).filter(e => e.name);
+                    const attrCarriers = attrCarriersData.map(e => e.name).join(', ');
+                    const latestDate = attrCarriersData.length > 0 ? attrCarriersData.reduce((a, b) => new Date(a.date) > new Date(b.date) ? a : b).date : null;
+                    const relTime = formatRelativeTime(latestDate);
+                    
+                    triggerPlay = {
+                       fact: `${agName} is experiencing loss of ${attrCarriers} ${relTime}.`,
+                       play: `Highlight your agency's stable carrier relationships and superior market access.`
+                    };
+                  } else if (mData.defection && mData.defection.length >= 3) {
+                    trigger = 'M&A / ATTRITION';
+                    flightRisk = 'Medium';
+                    flightRiskColor = '#F59E0B';
+                    
+                    const exitDates = mData.defection.map(e => e.movement_date).filter(Boolean);
+                    const latestExit = exitDates.length > 0 ? exitDates.reduce((a, b) => new Date(a) > new Date(b) ? a : b) : null;
+                    const relTime = formatRelativeTime(latestExit);
+                    
+                    triggerPlay = {
+                       fact: `${agName} has lost ${mData.defection.length} producers, most recently ${relTime}.`,
+                       play: `Capitalize on instability. Probe for compensation or cultural dissatisfaction.`
+                    };
+                  }
+                }
+
+                // 1. Industry Tenure
+                let industryTenure = 'Unknown';
+                if (p.original_license_date) {
+                  const years = new Date().getFullYear() - new Date(p.original_license_date).getFullYear();
+                  industryTenure = years === 0 ? '< 1 Year' : `${years} Years`;
+                }
+
+                // 2. Carrier Overlap & Fit Score
+                let fitScore = 'Unknown Fit';
+                let fitColor = 'var(--text-muted)';
+                let overlapCount = 0;
+                let totalProdCarriers = 0;
+                
+                if (p.producer_carrier_appointments && p.producer_carrier_appointments.length > 0 && principalCarriers.length > 0) {
+                  totalProdCarriers = p.producer_carrier_appointments.length;
+                  const prodCarrierNames = p.producer_carrier_appointments.map(a => a.carrier?.carrier_name).filter(Boolean);
+                  overlapCount = prodCarrierNames.filter(c => principalCarriers.includes(c)).length;
+                  
+                  const overlapPct = overlapCount / totalProdCarriers;
+                  if (overlapPct >= 0.5) {
+                    fitScore = 'High Fit';
+                    fitColor = 'var(--accent-green)';
+                  } else if (overlapPct >= 0.2) {
+                    fitScore = 'Medium Fit';
+                    fitColor = '#F59E0B';
+                  } else {
+                    fitScore = 'Low Fit';
+                    fitColor = 'var(--accent-red)';
+                  }
+                } else if (p.producer_carrier_appointments && p.producer_carrier_appointments.length > 0) {
+                   totalProdCarriers = p.producer_carrier_appointments.length;
+                }
+
+                // 3. Target Value (Estimated Revenue)
+                let estRevenue = 'Unknown';
+                if (p.estimated_premium) {
+                  const match = p.estimated_premium.match(/[\d.]+/);
+                  if (match) {
+                    const num = parseFloat(match[0]);
+                    const suffix = p.estimated_premium.includes('M') ? 'k' : '';
+                    if (p.estimated_premium.includes('M')) {
+                      estRevenue = `$${Math.round(num * 100)}${suffix}`;
+                    } else if (p.estimated_premium.includes('k')) {
+                      estRevenue = `$${Math.round(num * 0.1)}k`;
+                    } else {
+                      estRevenue = p.estimated_premium;
+                    }
+                  }
+                }
+
+                return {
+                  ...p,
+                  flightRisk,
+                  flightRiskColor,
+                  trigger,
+                  triggerPlay,
+                  industryTenure,
+                  fitScore,
+                  fitColor,
+                  overlapCount,
+                  totalProdCarriers,
+                  estRevenue
+                }
+              }).filter(p => {
+                if (filterVector && p.trigger !== filterVector) return false;
+                
+                if (filterName) {
+                  const searchStr = `${p.first_name} ${p.last_name}`.toLowerCase();
+                  if (!searchStr.includes(filterName.toLowerCase())) return false;
+                }
+                
+                if (filterSpecialty) {
+                  const spec = (p.specialty || p.lob || '').toLowerCase();
+                  if (!spec.includes(filterSpecialty.toLowerCase())) return false;
+                }
+                
+                if (filterFitScore && p.fitScore !== filterFitScore) return false;
+                
+                if (filterMinTenure) {
+                  const years = p.original_license_date ? new Date().getFullYear() - new Date(p.original_license_date).getFullYear() : 0;
+                  if (years < parseInt(filterMinTenure)) return false;
+                }
+                
+                if (filterMinRevenue) {
+                  if (!p.estimated_premium) return false;
+                  const match = p.estimated_premium.match(/[\d.]+/);
+                  if (match) {
+                    const num = parseFloat(match[0]);
+                    let rawRev = 0;
+                    if (p.estimated_premium.includes('M')) rawRev = num * 100000; // 10% of 1M premium = 100k revenue
+                    else if (p.estimated_premium.includes('k')) rawRev = num * 100; // 10% of 100k premium = 10k revenue
+                    
+                    if (rawRev < parseInt(filterMinRevenue)) return false;
+                  } else {
+                    return false;
+                  }
+                }
+                
+                return true;
+              });
+
+              return (
+                <div className="directory-container" style={{ marginTop: '1.5rem', paddingBottom: '3rem' }}>
+                  {/* Command Center Filters */}
+                  <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: '8px', padding: '1.5rem', marginBottom: '1.5rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                      <span style={{ fontSize: '0.8rem', color: '#FFF', fontWeight: 'bold', fontFamily: 'var(--font-mono)' }}>SCOUTING COMMAND CENTER</span>
+                      {(filterVector || filterFitScore || filterSpecialty || filterMinRevenue || filterMinTenure || filterName) && (
+                        <button 
+                          onClick={() => { setFilterVector(''); setFilterFitScore(''); setFilterSpecialty(''); setFilterMinRevenue(''); setFilterMinTenure(''); setFilterName(''); }}
+                          style={{ background: 'transparent', border: '1px solid var(--accent-red)', color: 'var(--accent-red)', padding: '0.3rem 0.6rem', borderRadius: '4px', fontSize: '0.65rem', cursor: 'pointer', fontFamily: 'var(--font-mono)' }}
+                        >
+                          RESET FILTERS
+                        </button>
+                      )}
+                    </div>
+                    
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', flex: 1, minWidth: '150px' }}>
+                        <label style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>OPPORTUNITY VECTOR</label>
+                        <select value={filterVector} onChange={e => setFilterVector(e.target.value)} style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: '#FFF', padding: '0.6rem', fontSize: '0.75rem', borderRadius: '4px', outline: 'none' }}>
+                          <option value="">All Vectors</option>
+                          <option value="CARRIER SQUEEZE">Carrier Squeeze (High Risk)</option>
+                          <option value="CARRIER ATTRITION">Carrier Attrition (Med Risk)</option>
+                          <option value="M&A / ATTRITION">Agency Attrition (Med Risk)</option>
+                        </select>
+                      </div>
+
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', flex: 1, minWidth: '150px' }}>
+                        <label style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>CARRIER FIT</label>
+                        <select value={filterFitScore} onChange={e => setFilterFitScore(e.target.value)} style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: '#FFF', padding: '0.6rem', fontSize: '0.75rem', borderRadius: '4px', outline: 'none' }}>
+                          <option value="">All Fits</option>
+                          <option value="High Fit">High Fit (>50% Overlap)</option>
+                          <option value="Medium Fit">Medium Fit (>20% Overlap)</option>
+                        </select>
+                      </div>
+
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', flex: 1, minWidth: '150px' }}>
+                        <label style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>SPECIALTY / LOB</label>
+                        <select value={filterSpecialty} onChange={e => setFilterSpecialty(e.target.value)} style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: '#FFF', padding: '0.6rem', fontSize: '0.75rem', borderRadius: '4px', outline: 'none' }}>
+                          <option value="">All Lines</option>
+                          <option value="Commercial">Commercial Lines</option>
+                          <option value="Personal">Personal Lines</option>
+                          <option value="Benefits">Employee Benefits</option>
+                          <option value="Life">Life &amp; Health</option>
+                          <option value="Agriculture">Agriculture</option>
+                          <option value="Surety">Surety / Bonds</option>
+                        </select>
+                      </div>
+
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', flex: 1, minWidth: '150px' }}>
+                        <label style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>MIN. REVENUE (EST)</label>
+                        <select value={filterMinRevenue} onChange={e => setFilterMinRevenue(e.target.value)} style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: '#FFF', padding: '0.6rem', fontSize: '0.75rem', borderRadius: '4px', outline: 'none' }}>
+                          <option value="">Any Size</option>
+                          <option value="100000">$100k+ Revenue</option>
+                          <option value="250000">$250k+ Revenue</option>
+                          <option value="500000">$500k+ Revenue</option>
+                          <option value="1000000">$1M+ Revenue</option>
+                        </select>
+                      </div>
+
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', flex: 1, minWidth: '150px' }}>
+                        <label style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>MIN. TENURE</label>
+                        <select value={filterMinTenure} onChange={e => setFilterMinTenure(e.target.value)} style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: '#FFF', padding: '0.6rem', fontSize: '0.75rem', borderRadius: '4px', outline: 'none' }}>
+                          <option value="">Any Tenure</option>
+                          <option value="3">3+ Years</option>
+                          <option value="5">5+ Years</option>
+                          <option value="10">10+ Years</option>
+                        </select>
+                      </div>
+                    </div>
+                    
+                    <div style={{ marginTop: '1rem' }}>
+                      <input
+                        type="text"
+                        placeholder="Search Producer Name..."
+                        value={filterName}
+                        onChange={e => setFilterName(e.target.value)}
+                        style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: '#FFF', padding: '0.6rem 1rem', fontSize: '0.75rem', borderRadius: '4px', outline: 'none' }}
+                      />
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                    {augmentedProducers.map((producer, index) => {
+                      const isTracked = trackedProducerIds.includes(producer.id);
+                      
+                      return (
+                        <div key={producer.id + '-' + index} style={{ display: 'flex', flexDirection: 'column', background: 'rgba(255, 255, 255, 0.02)', border: '1px solid rgba(255, 255, 255, 0.05)', borderRadius: '8px', overflow: 'hidden', transition: 'all 0.2s' }}>
+                          
+                          {/* Row Header - Full Width Horizontal Layout */}
+                          <div style={{ padding: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            
+                            {/* Column 1: Identity & Tenure (30%) */}
+                            <div style={{ flex: '0 0 30%', display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                                <h3 style={{ margin: 0, fontSize: '1.1rem', color: '#FFF' }}>{producer.first_name || 'Unknown'} {producer.last_name || ''}</h3>
+                                {producer.trigger && (
+                                  <div style={{ background: 'rgba(255,42,85,0.1)', border: `1px solid ${producer.flightRiskColor}`, padding: '0.2rem 0.5rem', borderRadius: '4px', fontSize: '0.55rem', color: producer.flightRiskColor, fontFamily: 'var(--font-mono)', fontWeight: 'bold' }}>
+                                    ⚠ {producer.trigger}
+                                  </div>
+                                )}
                               </div>
-                            </th>
-                            <th style={{ padding: '0.8rem', fontWeight: 'normal', verticalAlign: 'bottom' }}>MOVEMENT DATE</th>
-                          </>
-                        ) : (
-                          <th style={{ padding: '0.8rem', fontWeight: 'normal', verticalAlign: 'bottom' }}>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                              <span>CURRENT AGENCY</span>
-                              <input
-                                type="text"
-                                placeholder="Search agency..."
-                                value={filterAgency}
-                                onChange={e => setFilterAgency(e.target.value)}
-                                style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: '#FFF', padding: '0.4rem', fontSize: '0.7rem', borderRadius: '2px', width: '100%', outline: 'none' }}
-                              />
+                              <div style={{ fontSize: '0.75rem', color: 'var(--accent-blue)' }}>{producer.current_agency?.agency_name || producer.previous_agency || 'Independent'}</div>
+                              <div style={{ display: 'flex', gap: '1rem', marginTop: '0.2rem' }}>
+                                <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>NPN: {producer.npn || 'Pending'}</span>
+                                <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>|</span>
+                                <span style={{ fontSize: '0.7rem', color: '#FFF' }}>{producer.industryTenure} Tenure</span>
+                              </div>
                             </div>
-                          </th>
-                        )}
-                        <th style={{ padding: '0.8rem', fontWeight: 'normal', textAlign: 'right', verticalAlign: 'bottom' }}>ACTION</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {registryProducers.map((producer, index) => {
-                        const isTracked = trackedProducerIds.includes(producer.id);
-                        const isExpanded = expandedProducer === producer.id;
-                        return (
-                          <Fragment key={producer.id + '-' + index}>
-                            <tr
-                              style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', cursor: 'pointer', background: isExpanded ? 'rgba(255,255,255,0.02)' : 'transparent' }}
-                              onClick={() => setExpandedProducer(isExpanded ? null : producer.id)}
-                            >
-                              <td style={{ padding: '0.8rem', color: '#FFF' }}>{producer.first_name || 'Unknown'} {producer.last_name || ''}</td>
-                              <td style={{ padding: '0.8rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>{producer.npn || 'Pending'}</td>
-                              <td style={{ padding: '0.8rem' }}>
-                                <div style={{ display: 'flex', flexDirection: 'column' }}>
-                                  <span style={{ color: '#FFF' }}>{producer.lob || 'Unknown'}</span>
-                                  <span style={{ color: 'var(--text-muted)', fontSize: '0.65rem' }}>{producer.specialty || 'General'}</span>
+
+                            {/* Column 2: Carrier Fit (40%) */}
+                            <div style={{ flex: '0 0 40%', display: 'flex', flexDirection: 'column', gap: '0.5rem', borderLeft: '1px solid rgba(255,255,255,0.1)', borderRight: '1px solid rgba(255,255,255,0.1)', padding: '0 1.5rem' }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', letterSpacing: '0.5px' }}>CARRIER PROFILE</span>
+                                <span style={{ fontSize: '0.7rem', fontWeight: 'bold', color: producer.fitColor }}>{producer.fitScore}</span>
+                              </div>
+                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.3rem' }}>
+                                {producer.producer_carrier_appointments?.slice(0, 4).map((appt, i) => (
+                                  <span key={i} className="carrier-pill">{appt.carrier?.carrier_name || 'Unknown'}</span>
+                                ))}
+                                {producer.producer_carrier_appointments?.length > 4 && (
+                                  <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', alignSelf: 'center' }}>+{producer.producer_carrier_appointments.length - 4} more</span>
+                                )}
+                                {(!producer.producer_carrier_appointments || producer.producer_carrier_appointments.length === 0) && (
+                                  <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>No Carrier Data</span>
+                                )}
+                              </div>
+                              <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', marginTop: 'auto' }}>
+                                {producer.totalProdCarriers > 0 ? `${producer.overlapCount} / ${producer.totalProdCarriers} Markets Overlap with your Agency` : 'Specialty: ' + (producer.specialty || producer.lob || 'General')}
+                              </div>
+                            </div>
+
+                            {/* Column 3: Value & Risk (25%) */}
+                            <div style={{ flex: '0 0 25%', display: 'flex', flexDirection: 'column', gap: '0.8rem', alignItems: 'flex-end' }}>
+                              <div style={{ textAlign: 'right' }}>
+                                <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', letterSpacing: '0.5px', marginBottom: '0.2rem' }}>EST. REVENUE / PREMIUM</div>
+                                <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.5rem', justifyContent: 'flex-end' }}>
+                                  <span style={{ fontSize: '1.2rem', fontWeight: 'bold', color: 'var(--accent-green)', fontFamily: 'var(--font-mono)' }}>{producer.estRevenue}</span>
+                                  <span style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.4)', fontFamily: 'var(--font-mono)' }}>/ {producer.estimated_premium || 'Unknown'}</span>
                                 </div>
-                              </td>
-                              <td style={{ padding: '0.8rem', color: 'var(--accent-green)', fontFamily: 'var(--font-mono)' }}>{producer.estimated_premium || 'Unknown'}</td>
-                              {producerFilter === 'DEFECTIONS' ? (
-                                <>
-                                  <td style={{ padding: '0.8rem', color: 'var(--accent-red)' }}>{producer.previous_agency}</td>
-                                  <td style={{ padding: '0.8rem', color: 'var(--accent-blue)' }}>{producer.current_agency?.agency_name || 'Independent / Unknown'}</td>
-                                  <td style={{ padding: '0.8rem', color: 'var(--text-muted)' }}>{producer.movement_date ? new Date(producer.movement_date).toLocaleDateString() : 'N/A'}</td>
-                                </>
+                              </div>
+                              <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.2rem' }}>
+                                <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', letterSpacing: '0.5px' }}>FLIGHT RISK</span>
+                                <span style={{ fontSize: '0.85rem', fontWeight: 'bold', color: producer.flightRiskColor, textShadow: producer.flightRisk !== 'Low' ? `0 0 10px ${producer.flightRiskColor}` : 'none' }}>{producer.flightRisk.toUpperCase()}</span>
+                              </div>
+                            </div>
+
+                          </div>
+
+                          {/* Always-Visible Playbook / Action Bar */}
+                          <div style={{ background: 'rgba(0,0,0,0.2)', borderTop: '1px solid rgba(255,255,255,0.05)', padding: '1rem 1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <div style={{ flex: 1 }}>
+                              {producer.triggerPlay ? (
+                                <div style={{ display: 'flex', gap: '2rem' }}>
+                                  <div style={{ flex: 1 }}>
+                                    <span style={{ fontSize: '0.65rem', color: 'var(--accent-red)', fontFamily: 'var(--font-mono)', fontWeight: 'bold', display: 'block', marginBottom: '0.3rem' }}>THE FACT</span>
+                                    <span style={{ fontSize: '0.8rem', color: '#FFF' }}>{producer.triggerPlay.fact}</span>
+                                  </div>
+                                  <div style={{ flex: 1, borderLeft: '1px solid rgba(255,255,255,0.1)', paddingLeft: '2rem' }}>
+                                    <span style={{ fontSize: '0.65rem', color: 'var(--accent-blue)', fontFamily: 'var(--font-mono)', fontWeight: 'bold', display: 'block', marginBottom: '0.3rem' }}>THE PLAY</span>
+                                    <span style={{ fontSize: '0.8rem', color: '#FFF' }}>{producer.triggerPlay.play}</span>
+                                  </div>
+                                </div>
                               ) : (
-                                <td style={{ padding: '0.8rem', color: 'var(--accent-blue)' }}>{producer.current_agency?.agency_name || 'Independent / Unknown'}</td>
+                                <div>
+                                  <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', fontWeight: 'bold', display: 'block', marginBottom: '0.3rem' }}>STANDARD OUTREACH</span>
+                                  <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>No immediate vulnerability detected. Lead with culture, commission splits, and superior market access.</span>
+                                </div>
                               )}
-                              <td style={{ padding: '0.8rem', textAlign: 'right' }}>
+                            </div>
+
+                            {/* Actions & Outreach Vectors */}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginLeft: '1.5rem' }}>
+                                {/* Outreach Vectors */}
+                                <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                                  <span style={{ fontSize: '0.6rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', marginRight: '0.5rem' }}>OUTREACH</span>
+                                  <a
+                                    href={producer.linkedin_url || `https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent((producer.first_name || '') + ' ' + (producer.last_name || '') + ' ' + (producer.current_agency?.agency_name || ''))}`}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    onClick={e => e.stopPropagation()}
+                                    style={{
+                                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                      width: '32px', height: '32px', borderRadius: '50%',
+                                      background: 'rgba(10, 102, 194, 0.2)', border: '1px solid rgba(10, 102, 194, 0.5)',
+                                      color: '#0A66C2', textDecoration: 'none', transition: 'all 0.2s', cursor: 'pointer',
+                                      fontWeight: 'bold', fontFamily: 'var(--font-mono)'
+                                    }}
+                                    title={producer.linkedin_url ? "Verified LinkedIn Profile" : "Search LinkedIn (Fallback)"}
+                                  >
+                                    in
+                                  </a>
+                                  <button
+                                    onClick={e => { e.stopPropagation(); alert('Email Enrichment API (e.g. Apollo/Lusha) required for direct email resolution.'); }}
+                                    style={{
+                                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                      width: '32px', height: '32px', borderRadius: '50%',
+                                      background: 'rgba(255, 255, 255, 0.05)', border: '1px solid rgba(255, 255, 255, 0.2)',
+                                      color: '#FFF', transition: 'all 0.2s', cursor: 'pointer',
+                                      fontWeight: 'bold', fontFamily: 'var(--font-mono)'
+                                    }}
+                                    title="Find Email (Integration Required)"
+                                  >
+                                    @
+                                  </button>
+                                </div>
+                                
+                                <div style={{ width: '1px', height: '32px', background: 'rgba(255,255,255,0.1)' }}></div>
+
                                 <button
                                   onClick={(e) => { e.stopPropagation(); handleTrackProducer(producer); }}
                                   style={{
-                                    background: isTracked ? 'rgba(255,255,255,0.05)' : 'transparent',
-                                    border: `1px solid ${isTracked ? 'transparent' : 'var(--accent-red)'}`,
-                                    color: isTracked ? 'var(--text-muted)' : 'var(--accent-red)',
-                                    padding: '0.3rem 0.6rem',
-                                    borderRadius: '2px',
-                                    fontSize: '0.65rem',
+                                    background: isTracked ? 'rgba(255,255,255,0.05)' : 'var(--accent-blue)',
+                                    border: isTracked ? '1px solid rgba(255,255,255,0.1)' : 'none',
+                                    color: isTracked ? 'var(--text-muted)' : '#FFF',
+                                    padding: '0.5rem 1rem',
+                                    borderRadius: '4px',
+                                    fontSize: '0.7rem',
                                     cursor: 'pointer',
-                                    fontFamily: 'var(--font-mono)'
-                                  }}
-                                  onMouseOver={(e) => {
-                                    if (isTracked) {
-                                      e.currentTarget.style.color = '#FFF';
-                                      e.currentTarget.style.border = '1px solid rgba(255,255,255,0.3)';
-                                    }
-                                  }}
-                                  onMouseOut={(e) => {
-                                    if (isTracked) {
-                                      e.currentTarget.style.color = 'var(--text-muted)';
-                                      e.currentTarget.style.border = '1px solid transparent';
-                                    }
+                                    fontFamily: 'var(--font-mono)',
+                                    fontWeight: 'bold'
                                   }}
                                 >
-                                  {isTracked ? '- UNTRACK' : '+ TRACK'}
+                                  {isTracked ? '- UNTRACK TARGET' : '+ TRACK TARGET'}
                                 </button>
-                              </td>
-                            </tr>
-                            {isExpanded && (
-                              <tr style={{ background: 'rgba(0,0,0,0.2)', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-                                <td colSpan={producerFilter === 'DEFECTIONS' ? "8" : "6"} style={{ padding: '1.5rem' }}>
-                                  <div style={{ display: 'flex', gap: '3rem' }}>
-
-                                    {/* Column 1: Carrier Appointments */}
-                                    <div style={{ flex: 1 }}>
-                                      <span style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', letterSpacing: '1px', marginBottom: '0.8rem' }}>ACTIVE CARRIER APPOINTMENTS</span>
-                                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
-                                        {producer.producer_carrier_appointments && producer.producer_carrier_appointments.length > 0 ? (
-                                          producer.producer_carrier_appointments.map((appt, i) => (
-                                            <span key={i} className="carrier-pill">{appt.carrier?.carrier_name || 'Unknown'}</span>
-                                          ))
-                                        ) : (
-                                          <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>No active appointments found.</span>
-                                        )}
-                                      </div>
-                                    </div>
-
-                                    {/* Column 2: Compliance & Background */}
-                                    <div style={{ flex: 1 }}>
-                                      <span style={{ display: 'block', fontSize: '0.65rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', letterSpacing: '1px', marginBottom: '0.8rem' }}>COMPLIANCE STATUS</span>
-                                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                                        <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px dashed rgba(255,255,255,0.1)', paddingBottom: '0.3rem' }}>
-                                          <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>License Status</span>
-                                          <span style={{ color: 'var(--accent-green)', fontSize: '0.75rem', fontFamily: 'var(--font-mono)' }}>ACTIVE</span>
-                                        </div>
-                                        <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px dashed rgba(255,255,255,0.1)', paddingBottom: '0.3rem' }}>
-                                          <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>Disciplinary Actions</span>
-                                          <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem', fontFamily: 'var(--font-mono)' }}>CLEAN</span>
-                                        </div>
-                                        <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: '0.3rem' }}>
-                                          <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>Original Issue Date</span>
-                                          <span style={{ color: '#FFF', fontSize: '0.75rem', fontFamily: 'var(--font-mono)' }}>{producer.original_license_date ? new Date(producer.original_license_date).getFullYear() : 'N/A'}</span>
-                                        </div>
-                                      </div>
-                                    </div>
-
-                                  </div>
-                                </td>
-                              </tr>
-                            )}
-                          </Fragment>
-                        )
-                      })}
-                      {registryProducers.length === 0 && !isSearchingProducers && (
-                        <tr>
-                          <td colSpan="5" style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>
-                            No producers found matching "{producerSearchQuery}"
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
+                            </div>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                  {augmentedProducers.length === 0 && !isSearchingProducers && (
+                    <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+                      No high-value targets found matching the current filters.
+                    </div>
+                  )}
                 </div>
-              </div>
-            )}
+              );
+            })()}
 
 
 
