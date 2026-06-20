@@ -67,7 +67,7 @@ export default function Onboarding() {
 
   const navigate = useNavigate()
   const location = useLocation()
-  const maxTargets = 5
+  const maxTargets = 10
   // Use email from login/signup, or fallback to the seeded user
   const USER_EMAIL = location.state?.email || 'principal@agencyforte.com'
 
@@ -99,12 +99,6 @@ export default function Onboarding() {
         if (!isCancelled) setSearchLog('> Match acquired. Decrypting payload...')
         await new Promise(r => setTimeout(r, 400))
 
-        const { count } = await supabase.from('agency_carrier_appointments')
-          .select('*', { count: 'exact', head: true })
-          .eq('agency_id', data[0].id)
-          .eq('status', 'ACTIVE')
-
-        data[0].carriers_count = count || 0
         if (!isCancelled) setAgencyResults(data)
       } else {
         if (!isCancelled) setSearchLog('> No matching entities found.')
@@ -126,22 +120,22 @@ export default function Onboarding() {
     if (step === 2 && homeAgency && analysisStep === 0) {
       const runAnalysis = async () => {
         setAnalysisStep(1)
-        setAnalysisLog('Initializing geographic boundary scan...')
+        setAnalysisLog('Analyzing active carrier appointments...')
         await new Promise(r => setTimeout(r, 1200))
         
         setAnalysisStep(2)
-        setAnalysisLog('Cross-referencing carrier appointments...')
+        setAnalysisLog('Mapping producer headcount scale parity across the DFW Metroplex...')
         await new Promise(r => setTimeout(r, 1200))
 
-        setAnalysisLog('Identifying high-threat market overlap...')
-        await new Promise(r => setTimeout(r, 1200))
+        setAnalysisLog('Calculating 3-Vector threat scores against 1,863 local independent agencies...')
+        await new Promise(r => setTimeout(r, 1500))
 
         const { data, error } = await supabase
           .from('competitor_relationships')
           .select('*, competitor_agency:agencies!competitor_agency_id(id, agency_name, total_producers_count)')
           .eq('base_agency_id', homeAgency.id)
           .order('competition_score', { ascending: false })
-          .limit(5)
+          .limit(10)
 
         if (!error && data) {
           const recs = data.map(d => {
@@ -248,7 +242,7 @@ export default function Onboarding() {
               <>
                 <h2 style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>AUTHENTICATE ORIGIN AGENCY</h2>
                 <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>
-                  Input NPN or State License UID to initialize your geographic footprint.
+                  Input Corporate Agency NPN to initialize your geographic footprint.
                 </p>
               </>
             ) : (
@@ -265,7 +259,7 @@ export default function Onboarding() {
             <div className="step-1-content">
               <input
                 type="text"
-                placeholder="Input NPN or State License UID..."
+                placeholder="Input Corporate Agency NPN..."
                 value={agencySearch}
                 onChange={(e) => setAgencySearch(e.target.value)}
                 style={{
@@ -345,7 +339,7 @@ export default function Onboarding() {
               ) : (
                 <div className="fade-in-up" style={{ marginBottom: '2rem' }}>
                   <div style={{ fontSize: '0.85rem', color: 'var(--accent-green)', fontFamily: 'var(--font-mono)', marginBottom: '1rem', textTransform: 'uppercase', textAlign: 'center', letterSpacing: '1px' }}>
-                    [ 5 HIGH-THREAT VECTORS IDENTIFIED ]
+                    [ TOP 10 HIGH-THREAT VECTORS IDENTIFIED ]
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                     {recommendedTargets.map((rec, idx) => (

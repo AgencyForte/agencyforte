@@ -1,1 +1,6 @@
 day_*/
+node_modules/
+.env
+icp_competitor_matrix.json
+texas_tam_icps.json
+live_icp_targets.json
