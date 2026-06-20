@@ -61,9 +61,8 @@ export default function Onboarding() {
 
   // Step 2 States
   const [recommendedTargets, setRecommendedTargets] = useState([])
-  const [targetSearch, setTargetSearch] = useState('')
-  const [targetSearchResults, setTargetSearchResults] = useState([])
-  const [targets, setTargets] = useState([])
+  const [analysisStep, setAnalysisStep] = useState(0) // 0: uninit, 1: connecting, 2: analyzing, 3: completed
+  const [analysisLog, setAnalysisLog] = useState('')
   const [isLoading, setIsLoading] = useState(false)
 
   const navigate = useNavigate()
@@ -122,10 +121,21 @@ export default function Onboarding() {
     }
   }, [agencySearch, step])
 
-  // Step 2 Fetch Recommendations Effect
+  // Step 2 Analysis Sequence Effect
   useEffect(() => {
-    if (step === 2 && homeAgency) {
-      const fetchRecommendations = async () => {
+    if (step === 2 && homeAgency && analysisStep === 0) {
+      const runAnalysis = async () => {
+        setAnalysisStep(1)
+        setAnalysisLog('Initializing geographic boundary scan...')
+        await new Promise(r => setTimeout(r, 1200))
+        
+        setAnalysisStep(2)
+        setAnalysisLog('Cross-referencing carrier appointments...')
+        await new Promise(r => setTimeout(r, 1200))
+
+        setAnalysisLog('Identifying high-threat market overlap...')
+        await new Promise(r => setTimeout(r, 1200))
+
         const { data, error } = await supabase
           .from('competitor_relationships')
           .select('*, competitor_agency:agencies!competitor_agency_id(id, agency_name, total_producers_count)')
@@ -134,14 +144,7 @@ export default function Onboarding() {
           .limit(5)
 
         if (!error && data) {
-          // Format them to match our target shape
           const recs = data.map(d => {
-            let carrierText = `${d.overlap_carriers_count || 0} shared carriers`
-            // if we add shared_carrier_names later
-            if (d.shared_carrier_names && d.shared_carrier_names.length > 0) {
-              const names = d.shared_carrier_names.slice(0, 2).join(' & ')
-              carrierText = `Competes directly for your ${names}${d.shared_carrier_names.length > 2 ? ' and others' : ''} premium.`
-            }
             return {
               id: d.competitor_agency?.id || d.competitor_agency_id,
               name: d.competitor_agency?.agency_name || 'Unknown Competitor',
@@ -152,43 +155,16 @@ export default function Onboarding() {
           })
           setRecommendedTargets(recs)
         }
+        setAnalysisStep(3)
       }
-      fetchRecommendations()
+      runAnalysis()
     }
-  }, [step, homeAgency])
-
-  // Step 2 Search Target Effect
-  useEffect(() => {
-    if (step !== 2 || targetSearch.trim().length < 2) {
-      setTargetSearchResults([])
-      return
-    }
-
-    const searchTargets = async () => {
-      const { data, error } = await supabase
-        .from('agencies')
-        .select('id, agency_name, total_producers_count')
-        .ilike('agency_name', `%${targetSearch}%`)
-        .eq('is_enterprise', false)
-        .eq('is_captive_or_micro', false)
-        .gte('total_producers_count', 3)
-        .lte('total_producers_count', 19)
-        .limit(5)
-
-      if (!error && data) {
-        // Exclude home agency and already selected targets
-        const filtered = data.filter(a => a.id !== homeAgency?.id && !targets.some(t => t.id === a.id))
-        setTargetSearchResults(filtered)
-      }
-    }
-
-    const timeoutId = setTimeout(searchTargets, 300)
-    return () => clearTimeout(timeoutId)
-  }, [targetSearch, step, homeAgency, targets])
+  }, [step, homeAgency, analysisStep])
 
   const claimAgency = (agency) => {
     setHomeAgency(agency)
     setStep(2)
+    setAnalysisStep(0)
   }
 
   const finalizeClaim = async (e) => {
@@ -227,9 +203,9 @@ export default function Onboarding() {
       home_agency_id: homeAgency.id
     }).select('id').single()
 
-    if (newUser && targets.length > 0) {
+    if (newUser && recommendedTargets.length > 0) {
       // Insert new watchlists
-      const inserts = targets.map(t => ({
+      const inserts = recommendedTargets.map(t => ({
         user_id: newUser.id,
         agency_id: t.id,
         alert_min_tenure_years: 0
@@ -245,22 +221,7 @@ export default function Onboarding() {
     }
   }
 
-  const handleAddTarget = (agency, reason = 'Manual selection', producers = 'N/A', sharedCarriers = 0) => {
-    if (targets.length >= maxTargets) return
-    if (targets.some(t => t.id === agency.id)) return // already added
 
-    const newTarget = { id: agency.id, name: agency.name || agency.agency_name, reason, producers, sharedCarriers }
-    setTargets([...targets, newTarget])
-    setTargetSearch('')
-
-    if (!recommendedTargets.some(r => r.id === agency.id)) {
-      setRecommendedTargets([newTarget, ...recommendedTargets])
-    }
-  }
-
-  const handleRemove = (id) => {
-    setTargets(targets.filter(t => t.id !== id))
-  }
 
   const triggerAuthModal = () => {
     setShowVerification(true)
@@ -364,78 +325,56 @@ export default function Onboarding() {
           )}
 
           {step === 2 && (
-            <div className="step-2-content">
-              <div style={{ position: 'relative', marginBottom: '2rem' }}>
-                <input
-                  type="text"
-                  placeholder={targets.length >= maxTargets ? "Maximum targets reached." : "Search additional competitors by name..."}
-                  value={targetSearch}
-                  onChange={(e) => setTargetSearch(e.target.value)}
-                  disabled={targets.length >= maxTargets}
-                  style={{
-                    width: '100%', background: 'rgba(0,0,0,0.5)', border: '1px solid var(--border-highlight)',
-                    color: 'var(--text-main)', padding: '1rem 1.5rem', borderRadius: '6px', fontSize: '1.1rem',
-                    outline: 'none', transition: 'all 0.3s'
-                  }}
-                />
-
-                {targetSearchResults.length > 0 && (
-                  <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: 'var(--bg-card)', border: '1px solid var(--border-highlight)', borderRadius: '4px', zIndex: 100, marginTop: '5px', maxHeight: '200px', overflowY: 'auto' }}>
-                    {targetSearchResults.map(ag => (
-                      <button
-                        key={ag.id}
-                        onClick={() => handleAddTarget(ag)}
-                        style={{
-                          width: '100%', padding: '1rem', textAlign: 'left', background: 'transparent', border: 'none',
-                          borderBottom: '1px solid var(--border-subtle)', color: 'var(--text-main)', cursor: 'pointer', fontFamily: 'var(--font-mono)', fontSize: '0.9rem'
-                        }}
-                      >
-                        {ag.agency_name}
-                      </button>
-                    ))}
+            <div className="step-2-content fade-in-up">
+              
+              {analysisStep < 3 ? (
+                <div style={{
+                  background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)',
+                  borderRadius: '8px', padding: '3rem 2rem', textAlign: 'center', marginBottom: '2rem'
+                }}>
+                  <div className="loading-ring" style={{ width: '40px', height: '40px', border: '2px solid rgba(255,255,255,0.1)', borderTopColor: 'var(--accent-steel)', borderRadius: '50%', animation: 'spin 1s linear infinite', margin: '0 auto 1.5rem' }}></div>
+                  <div style={{ color: 'var(--accent-steel)', fontFamily: 'var(--font-mono)', fontSize: '0.85rem', letterSpacing: '1px', textTransform: 'uppercase' }}>
+                    {analysisLog}
                   </div>
-                )}
-              </div>
-
-              {recommendedTargets.length > 0 && (
-                <div style={{ marginBottom: '2rem' }}>
-                  <div style={{ fontSize: '0.85rem', color: 'var(--accent-steel)', fontFamily: 'var(--font-mono)', marginBottom: '0.5rem', textTransform: 'uppercase' }}>
-                    TARGET DOSSIERS
+                  
+                  {/* Progress Bar */}
+                  <div style={{ width: '60%', height: '2px', background: 'rgba(255,255,255,0.1)', margin: '1.5rem auto 0', overflow: 'hidden' }}>
+                    <div style={{ width: `${(analysisStep / 3) * 100}%`, height: '100%', background: 'var(--accent-steel)', transition: 'width 1.2s cubic-bezier(0.4, 0, 0.2, 1)' }}></div>
+                  </div>
+                </div>
+              ) : (
+                <div className="fade-in-up" style={{ marginBottom: '2rem' }}>
+                  <div style={{ fontSize: '0.85rem', color: 'var(--accent-green)', fontFamily: 'var(--font-mono)', marginBottom: '1rem', textTransform: 'uppercase', textAlign: 'center', letterSpacing: '1px' }}>
+                    [ 5 HIGH-THREAT VECTORS IDENTIFIED ]
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                    {recommendedTargets.map(rec => {
-                      const isSelected = targets.some(t => t.id === rec.id);
-                      return (
-                        <div
-                          key={rec.id}
-                          onClick={() => isSelected ? handleRemove(rec.id) : handleAddTarget({ id: rec.id, name: rec.name }, rec.reason, rec.producers, rec.sharedCarriers)}
-                          style={{
-                            background: isSelected ? 'rgba(71, 85, 105, 0.15)' : 'var(--bg-surface)',
-                            border: '1px solid var(--border-subtle)',
-                            padding: '1.5rem', borderRadius: '8px', display: 'flex', justifyContent: 'space-between',
-                            alignItems: 'center', cursor: 'pointer', transition: 'background-color 0.2s'
-                          }}
-                        >
-                          <div style={{ flex: 1 }}>
-                            <div style={{ color: 'var(--text-main)', fontWeight: 'bold', fontSize: '1.05rem', marginBottom: '0.4rem' }}>{rec.name}</div>
-                            <div style={{ display: 'flex', gap: '20px', color: 'var(--text-main)', fontSize: '0.85rem' }}>
-                              <span><span style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>PRODUCERS </span> <strong style={{ fontFamily: 'var(--font-mono)' }}>{rec.producers}</strong></span>
-                              <span><span style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>SHARED CARRIERS </span> <strong style={{ fontFamily: 'var(--font-mono)' }}>{rec.sharedCarriers}</strong></span>
-                              <span><span style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>PROXIMITY </span> <strong style={{ fontFamily: 'var(--font-mono)' }}>{rec.reason}</strong></span>
-                            </div>
-                          </div>
-                          <div style={{
-                            width: '24px', height: '24px', borderRadius: '50%',
-                            border: isSelected ? 'none' : '2px solid var(--border-subtle)',
-                            background: isSelected ? 'var(--accent-steel)' : 'transparent',
-                            display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            marginLeft: '1rem', transition: 'all 0.2s'
-                          }}>
-                            {isSelected && <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>}
+                    {recommendedTargets.map((rec, idx) => (
+                      <div
+                        key={rec.id || idx}
+                        style={{
+                          background: 'rgba(71, 85, 105, 0.15)',
+                          border: '1px solid var(--border-highlight)',
+                          padding: '1.5rem', borderRadius: '8px', display: 'flex', justifyContent: 'space-between',
+                          alignItems: 'center'
+                        }}
+                      >
+                        <div style={{ flex: 1 }}>
+                          <div style={{ color: 'var(--text-main)', fontWeight: 'bold', fontSize: '1.05rem', marginBottom: '0.4rem' }}>{rec.name}</div>
+                          <div style={{ display: 'flex', gap: '20px', color: 'var(--text-main)', fontSize: '0.85rem' }}>
+                            <span><span style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>PRODUCERS </span> <strong style={{ fontFamily: 'var(--font-mono)' }}>{rec.producers}</strong></span>
+                            <span><span style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>SHARED CARRIERS </span> <strong style={{ fontFamily: 'var(--font-mono)' }}>{rec.sharedCarriers}</strong></span>
+                            <span><span style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>PROXIMITY </span> <strong style={{ fontFamily: 'var(--font-mono)' }}>{rec.reason}</strong></span>
                           </div>
                         </div>
-                      )
-                    })}
+                        <div style={{
+                          width: '24px', height: '24px', borderRadius: '50%',
+                          background: 'var(--accent-steel)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          marginLeft: '1rem'
+                        }}>
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#111" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
               )}
@@ -443,16 +382,16 @@ export default function Onboarding() {
               <button
                 onClick={triggerAuthModal}
                 className="btn-primary-full"
-                disabled={targets.length === 0 || isLoading}
+                disabled={analysisStep < 3 || isLoading}
                 style={{
-                  width: '100%', opacity: targets.length > 0 ? 1 : 0.5,
-                  pointerEvents: targets.length > 0 ? 'auto' : 'none', transition: 'all 0.3s'
+                  width: '100%', opacity: analysisStep === 3 ? 1 : 0.5,
+                  pointerEvents: analysisStep === 3 ? 'auto' : 'none', transition: 'all 0.3s'
                 }}
               >
                 {isLoading ? (
                   <><div className="loading-dot" style={{ display: 'inline-block', marginRight: '10px', width: '6px', height: '6px', background: 'currentColor', borderRadius: '50%', animation: 'pulse 1s infinite' }}></div> Initializing Dashboard...</>
                 ) : (
-                  `Deploy Watchlist (${targets.length}/${maxTargets} Selected)`
+                  '[ INITIALIZE INTELLIGENCE DASHBOARD ]'
                 )}
               </button>
             </div>
@@ -537,6 +476,9 @@ export default function Onboarding() {
         }
         @keyframes blink {
           50% { opacity: 0; }
+        }
+        @keyframes spin {
+          to { transform: rotate(360deg); }
         }
       `}</style>
     </div>
