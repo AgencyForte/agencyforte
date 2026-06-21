@@ -58,7 +58,13 @@ export default function Dashboard() {
   const [producerSearchQuery, setProducerSearchQuery] = useState('')
   const [isSearchingProducers, setIsSearchingProducers] = useState(false)
   const [producerFilter, setProducerFilter] = useState('ALL')
-  const [competitorFilter, setCompetitorFilter] = useState('ALL')
+  const [competitorFilter, setCompetitorFilter] = useState('ENTIRE MSA')
+
+  // Feed Pagination State
+  const [feedPage, setFeedPage] = useState(0)
+  const [hasMoreFeed, setHasMoreFeed] = useState(true)
+  const [isFetchingFeed, setIsFetchingFeed] = useState(false)
+  const [matrixDataCache, setMatrixDataCache] = useState([])
   const [expandedProducer, setExpandedProducer] = useState(null)
 
   useEffect(() => {
@@ -73,6 +79,125 @@ export default function Dashboard() {
     localStorage.setItem('watch_search', searchTerm)
     localStorage.setItem('watch_vectors', JSON.stringify(activeVectors))
   }, [searchTerm, activeVectors])
+
+
+  const fetchFeedPage = async (pageToFetch, matrixCacheRef, regionRef) => {
+    if (isFetchingFeed || !hasMoreFeed) return;
+    setIsFetchingFeed(true);
+    try {
+      const PAGE_SIZE = 100;
+      const fromOffset = pageToFetch * PAGE_SIZE;
+      const toOffset = fromOffset + PAGE_SIZE - 1;
+
+      const { data: globalMovements } = await supabase
+        .from('producer_movements')
+        .select(`
+          id, movement_date, movement_type, lines_affected,
+          from_agency_id, to_agency_id,
+          producer:producers(npn, first_name, last_name, original_license_date, active_appointments_count),
+          from_agency:agencies!from_agency_id!inner(id, agency_name, category, total_producers_count, owner_name, location:locations!inner(msa, city)),
+          to_agency:agencies!to_agency_id(id, agency_name, category, total_producers_count, owner_name, location:locations(msa, city))
+        `)
+        .eq('from_agency.location.msa', regionRef)
+        .order('movement_date', { ascending: false })
+        .range(fromOffset, toOffset);
+
+      const { data: globalEvents } = await supabase
+        .from('carrier_events')
+        .select(`
+          id, event_date, event_type, producers_affected_count, notes,
+          agency_id,
+          carrier:carriers(carrier_name),
+          agency:agencies!inner(id, agency_name, category, total_producers_count, owner_name, location:locations!inner(msa, city))
+        `)
+        .eq('agency.location.msa', regionRef)
+        .order('event_date', { ascending: false })
+        .range(fromOffset, toOffset);
+
+      if ((!globalMovements || globalMovements.length < PAGE_SIZE) && (!globalEvents || globalEvents.length < PAGE_SIZE)) {
+        setHasMoreFeed(false);
+      }
+
+      setMarketData(prev => {
+        const nextGrouped = { ...prev };
+
+        const ensureGlobalAgency = (ag) => {
+          if (!ag || !ag.agency_name) return;
+          if (!nextGrouped[ag.agency_name]) {
+            const matrixMatch = matrixCacheRef?.find(m => m.competitor_agency_id === ag.id);
+            const commercialCarriers = ['Travelers', 'Liberty Mutual', 'Chubb', 'CNA', 'The Hartford', 'Zurich'];
+            let threatContext = [];
+            let overlapScore = 0;
+
+            if (matrixMatch) {
+              const overlapCount = matrixMatch.overlap_carriers_count || 0;
+              for (let i = 0; i < overlapCount; i++) {
+                threatContext.push(commercialCarriers[i % commercialCarriers.length]);
+              }
+              overlapScore = Math.min(99, Math.max(65, Math.floor(matrixMatch.competition_score / 30)));
+            }
+
+            nextGrouped[ag.agency_name] = {
+              id: ag.id,
+              name: ag.agency_name,
+              agency_name: ag.agency_name,
+              total_producers_count: ag.total_producers_count,
+              msa: ag.location?.msa,
+              city: ag.location?.city,
+              owner_name: ag.owner_name,
+              threat_context: threatContext,
+              overlap_score: overlapScore,
+              defection: [], hire: [], carrier_loss: [], agency_termination: [], new_appt: [], jit: []
+            }
+          }
+        }
+
+        // Pre-seed direct competitors if this is page 0
+        if (pageToFetch === 0) {
+          matrixCacheRef?.forEach(m => {
+            if (m.competitor_agency) ensureGlobalAgency(m.competitor_agency);
+          });
+        }
+
+        globalMovements?.forEach(m => {
+          const tenureYears = m.producer?.original_license_date ? (new Date() - new Date(m.producer.original_license_date)) / 31536000000 : 0;
+          if (tenureYears < 3) return;
+
+          if (m.from_agency) {
+            ensureGlobalAgency(m.from_agency);
+            if (!nextGrouped[m.from_agency.agency_name].defection.some(x => x.id === m.id)) {
+                nextGrouped[m.from_agency.agency_name].defection.push(m);
+            }
+          }
+          if (m.to_agency) {
+            ensureGlobalAgency(m.to_agency);
+            if (!nextGrouped[m.to_agency.agency_name].hire.some(x => x.id === m.id)) {
+                nextGrouped[m.to_agency.agency_name].hire.push(m);
+            }
+          }
+        });
+
+        globalEvents?.forEach(e => {
+          if (e.agency) {
+            ensureGlobalAgency(e.agency);
+            if (e.event_type === 'APPOINTMENT_LOST' && !nextGrouped[e.agency.agency_name].carrier_loss.some(x => x.id === e.id)) {
+                nextGrouped[e.agency.agency_name].carrier_loss.push(e)
+            } else if (e.event_type === 'MASS_TERMINATION' && !nextGrouped[e.agency.agency_name].agency_termination.some(x => x.id === e.id)) {
+                nextGrouped[e.agency.agency_name].agency_termination.push(e)
+            } else if (e.event_type === 'APPOINTMENT_GAINED' && !nextGrouped[e.agency.agency_name].new_appt.some(x => x.id === e.id)) {
+                nextGrouped[e.agency.agency_name].new_appt.push(e)
+            }
+          }
+        });
+
+        return nextGrouped;
+      });
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsFetchingFeed(false);
+    }
+  }
 
   useEffect(() => {
     const fetchData = async () => {
@@ -252,140 +377,49 @@ export default function Dashboard() {
           setWatchlistData(groupedData)
         }
 
-        // 6. Fetch Market Data constrained to EXACTLY the Top Competitors for this ICP
+        // 6. Fetch Competitor Matrix Data
+
+
         const { data: matrixData } = await supabase
+
+
           .from('competitor_relationships')
+
+
           .select(`
+
+
              competitor_agency_id, competition_score, overlap_carriers_count,
+
+
              competitor_agency:agencies!competitor_agency_id(id, agency_name, category, total_producers_count, owner_name, location:locations(msa, city))
+
+
           `)
+
+
           .eq('base_agency_id', userData.home_agency_id)
+
+
           .order('competition_score', { ascending: false })
+
+
           .limit(150);
 
-        const competitorIds = matrixData ? matrixData.map(m => m.competitor_agency_id) : [];
-        setMatrixCompetitorIds(competitorIds);
-        const quotedCompetitorIds = competitorIds.length > 0 ? competitorIds.map(id => `"${id}"`).join(',') : '""';
 
-        const { data: globalMovements } = await supabase
-          .from('producer_movements')
-          .select(`
-            id, movement_date, movement_type, lines_affected,
-            from_agency_id, to_agency_id,
-            producer:producers(npn, first_name, last_name, original_license_date, active_appointments_count),
-            from_agency:agencies!from_agency_id(id, agency_name, category, total_producers_count, owner_name, location:locations(msa, city)),
-            to_agency:agencies!to_agency_id(id, agency_name, category, total_producers_count, owner_name, location:locations(msa, city))
-          `)
-          .or(`from_agency_id.in.(${quotedCompetitorIds}),to_agency_id.in.(${quotedCompetitorIds})`)
-          .order('movement_date', { ascending: false })
-          .limit(500)
+        
 
-        const { data: globalEvents } = await supabase
-          .from('carrier_events')
-          .select(`
-            id, event_date, event_type, producers_affected_count, notes,
-            agency_id,
-            carrier:carriers(carrier_name),
-            agency:agencies!agency_id(id, agency_name, category, total_producers_count, owner_name, location:locations(msa, city))
-          `)
-          .in('agency_id', competitorIds)
-          .order('event_date', { ascending: false })
-          .limit(500)
 
-        const globalGrouped = {}
+        setMatrixDataCache(matrixData || []);
 
-        const ensureGlobalAgency = (ag) => {
-          if (!ag || !ag.agency_name) return;
-          if (!globalGrouped[ag.agency_name]) {
-            const matrixMatch = matrixData?.find(m => m.competitor_agency_id === ag.id);
 
-            const commercialCarriers = [
-              'Travelers', 'Liberty Mutual', 'Chubb', 'CNA', 'The Hartford', 'Zurich', 'AIG', 'AmTrust', 'Markel', 'Berkshire Hathaway',
-              'Nationwide', 'Progressive', 'State Farm', 'Allstate', 'Farmers', 'Philadelphia Insurance', 'Tokio Marine', 'Sompo', 'QBE', 'Hanover',
-              'Cincinnati', 'Auto-Owners', 'Selective', 'Argo Group', 'Great American', 'W. R. Berkley', 'CNA Surety', 'Arch Insurance', 'Hiscox', 'Starr',
-              'Beazley', 'RLI', 'Victor', 'USLI', 'Navigators', 'Ironshore', 'Acuity', 'Westfield', 'Sentry', 'Church Mutual'
-            ];
-            let threatContext = [];
-            let overlapScore = 45;
+        
 
-            if (matrixMatch) {
-              const overlapCount = matrixMatch.overlap_carriers_count || 0;
-              if (overlapCount > 0) {
-                for (let i = 0; i < overlapCount; i++) {
-                  threatContext.push(commercialCarriers[Math.floor(Math.random() * commercialCarriers.length)]);
-                }
-              }
-              // Map score from ~500-3000 to a 75-99% range
-              overlapScore = Math.min(99, Math.max(65, Math.floor(matrixMatch.competition_score / 30)));
-            } else {
-              threatContext = ['Travelers', 'Liberty Mutual'];
-            }
 
-            globalGrouped[ag.agency_name] = {
-              id: ag.id,
-              name: ag.agency_name,
-              agency_name: ag.agency_name,
-              total_producers_count: ag.total_producers_count,
-              msa: ag.location?.msa,
-              city: ag.location?.city,
-              owner_name: ag.owner_name,
-              threat_context: threatContext,
-              overlap_score: overlapScore,
-              defection: [], hire: [], carrier_loss: [], agency_termination: [], new_appt: [], jit: []
-            }
-          }
-        }
+        // Kick off initial feed fetch
 
-        // Pre-seed all Top 10 competitors into the market data even if they have NO events
-        matrixData?.forEach(m => {
-          if (m.competitor_agency) ensureGlobalAgency(m.competitor_agency);
-        });
 
-        globalMovements?.forEach(m => {
-          // SIGNAL PURITY: Discard junior producers (< 3 years tenure)
-          const tenureYears = m.producer?.original_license_date
-            ? (new Date() - new Date(m.producer.original_license_date)) / 31536000000
-            : 0;
-          if (tenureYears < 3) return;
-
-          if (m.from_agency) {
-            ensureGlobalAgency(m.from_agency);
-            globalGrouped[m.from_agency.agency_name].defection.push(m);
-          }
-          if (m.to_agency) {
-            ensureGlobalAgency(m.to_agency);
-            globalGrouped[m.to_agency.agency_name].hire.push(m);
-          }
-        })
-
-        globalEvents?.forEach(e => {
-          if (e.agency) {
-            ensureGlobalAgency(e.agency);
-            if (e.event_type === 'APPOINTMENT_LOST') globalGrouped[e.agency.agency_name].carrier_loss.push(e)
-            else if (e.event_type === 'MASS_TERMINATION') globalGrouped[e.agency.agency_name].agency_termination.push(e)
-            else if (e.event_type === 'APPOINTMENT_GAINED') globalGrouped[e.agency.agency_name].new_appt.push(e)
-          }
-        })
-
-        const { data: jitAppointments } = await supabase
-          .from('producer_carrier_appointments')
-          .select(`
-            appointment_date,
-            producer:producers(npn, first_name, last_name, current_agency_id, current_agency:agencies!current_agency_id(id, agency_name, category, total_producers_count, location:locations(msa, city))),
-            carrier:carriers(carrier_name)
-          `)
-          .order('appointment_date', { ascending: false })
-          .limit(50)
-
-        jitAppointments?.forEach(j => {
-          const ag = j.producer?.current_agency;
-          if (ag) {
-            ensureGlobalAgency(ag);
-            globalGrouped[ag.agency_name].jit.push(j);
-          }
-        })
-
-        setMarketData(globalGrouped)
+        await fetchFeedPage(0, matrixData || [], selectedRegion);
 
       } catch (err) {
         console.error("Dashboard Fetch Error:", err)
@@ -396,6 +430,27 @@ export default function Dashboard() {
 
     fetchData()
   }, [])
+
+  useEffect(() => {
+    const observer = new IntersectionObserver((entries) => {
+      if (entries[0].isIntersecting && hasMoreFeed && !isFetchingFeed) {
+        setFeedPage(prev => prev + 1);
+      }
+    }, { threshold: 0.1 });
+
+    const anchor = document.getElementById('scroll-anchor');
+    if (anchor) observer.observe(anchor);
+
+    return () => {
+      if (anchor) observer.unobserve(anchor);
+    }
+  }, [hasMoreFeed, isFetchingFeed]);
+
+  useEffect(() => {
+    if (feedPage > 0) {
+      fetchFeedPage(feedPage, matrixDataCache, selectedRegion);
+    }
+  }, [feedPage]);
 
   const toggleTray = (id) => {
     setOpenTrays(prev => ({
@@ -1281,7 +1336,7 @@ export default function Dashboard() {
                     <div className="console-section">
                       <span className="section-label">VIEW PORTFOLIO</span>
                       <div className="filter-pills" style={{ display: 'flex', gap: '0.5rem', marginTop: '5px' }}>
-                        {['ALL', 'WATCHLIST'].map(f => (
+                        {['ENTIRE MSA', 'DIRECT COMPETITORS'].map(f => (
                           <button
                             key={f}
                             onClick={() => setCompetitorFilter(f)}
@@ -1296,7 +1351,7 @@ export default function Dashboard() {
                               cursor: 'pointer'
                             }}
                           >
-                            {f === 'ALL' ? 'ALL COMPETITORS' : 'MY WATCHLIST'}
+                            {f}
                           </button>
                         ))}
                       </div>
@@ -1437,10 +1492,28 @@ export default function Dashboard() {
                       {Object.entries(renderData).length === 0 ? (
                         <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>No agencies match the current filters.</div>
                       ) : Object.entries(renderData)
+                        .filter(([_, data]) => {
+                           if (competitorFilter === 'DIRECT COMPETITORS') {
+                             return data.overlap_score > 0 && data.threat_context && data.threat_context.length > 0;
+                           }
+                           return true;
+                        })
                         .sort((a, b) => {
                           const totalA = a[1].defection.length + a[1].carrier_loss.length + a[1].agency_termination.length;
                           const totalB = b[1].defection.length + b[1].carrier_loss.length + b[1].agency_termination.length;
-                          return totalB - totalA;
+                          if (totalA !== totalB) return totalB - totalA;
+
+                          let mostRecentA = 0;
+                          [...a[1].defection, ...a[1].carrier_loss, ...a[1].agency_termination].forEach(evt => {
+                             const t = new Date(evt.movement_date || evt.event_date).getTime();
+                             if (t > mostRecentA) mostRecentA = t;
+                          });
+                          let mostRecentB = 0;
+                          [...b[1].defection, ...b[1].carrier_loss, ...b[1].agency_termination].forEach(evt => {
+                             const t = new Date(evt.movement_date || evt.event_date).getTime();
+                             if (t > mostRecentB) mostRecentB = t;
+                          });
+                          return mostRecentB - mostRecentA;
                         })
                         .map(([agencyName, data], index) => {
                           const { total_producers_count, defection, carrier_loss, agency_termination } = data;
@@ -1725,6 +1798,15 @@ export default function Dashboard() {
                           )
                         })}
                     </div>
+                    {hasMoreFeed && (
+                      <div id="scroll-anchor" style={{ height: '20px', margin: '1rem 0' }}></div>
+                    )}
+                    {isFetchingFeed && feedPage > 0 && (
+                      <div style={{ textAlign: 'center', padding: '1rem', color: 'var(--text-muted)' }}>
+                        <div className="loading-dot" style={{ display: 'inline-block', marginRight: '10px', width: '6px', height: '6px', background: 'currentColor', borderRadius: '50%', animation: 'pulse 1s infinite' }}></div>
+                        LOADING MORE VULNERABILITIES...
+                      </div>
+                    )}
                   </div>
                 )}
               </>
