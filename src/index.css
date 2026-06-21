@@ -1020,7 +1020,7 @@ footer {
     color: var(--text-main);
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-    row-gap: 0.8rem;
+    row-gap: 0.3rem;
     column-gap: 1.5rem;
 }
 
@@ -1060,7 +1060,7 @@ footer {
 .card-middle-split {
     display: flex;
     align-items: stretch;
-    padding: 1.5rem;
+    padding: 1rem 1.5rem;
 }
 
 .card-footnote-drawer {
@@ -1144,7 +1144,7 @@ footer {
     background: transparent;
     border: none;
     border-bottom: 1px solid rgba(255, 255, 255, 0.03);
-    padding: 0.5rem 0;
+    padding: 0.25rem 0;
     border-radius: 0;
     gap: 0.5rem;
     cursor: pointer;

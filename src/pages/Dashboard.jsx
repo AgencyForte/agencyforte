@@ -3,6 +3,22 @@ import { useLocation } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import './dashboard.css'
 
+const formatDetectedAgo = (dateString) => {
+  if (!dateString) return 'Recently';
+  const detectedDate = new Date(dateString);
+  const today = new Date();
+  const diffTime = today.getTime() - detectedDate.getTime();
+  const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+
+  if (diffDays <= 0) return 'Today';
+  if (diffDays === 1) return 'Yesterday';
+  if (diffDays < 7) return `${diffDays} days ago`;
+  if (diffDays < 14) return 'Last week';
+  if (diffDays < 30) return `${Math.floor(diffDays / 7)} weeks ago`;
+  if (diffDays < 60) return 'Last month';
+  return `${Math.floor(diffDays / 30)} months ago`;
+};
+
 export default function Dashboard() {
   const location = useLocation()
   const USER_EMAIL = location.state?.email || 'principal@agencyforte.com'
@@ -85,34 +101,36 @@ export default function Dashboard() {
     if (isFetchingFeed || !hasMoreFeed) return;
     setIsFetchingFeed(true);
     try {
-      const PAGE_SIZE = 100;
+      const PAGE_SIZE = 500;
       const fromOffset = pageToFetch * PAGE_SIZE;
       const toOffset = fromOffset + PAGE_SIZE - 1;
 
-      const { data: globalMovements } = await supabase
+      const { data: globalMovements, error: mErr } = await supabase
         .from('producer_movements')
         .select(`
           id, movement_date, movement_type, lines_affected,
           from_agency_id, to_agency_id,
           producer:producers(npn, first_name, last_name, original_license_date, active_appointments_count),
-          from_agency:agencies!from_agency_id!inner(id, agency_name, category, total_producers_count, owner_name, location:locations!inner(msa, city)),
+          from_agency:agencies!from_agency_id(id, agency_name, category, total_producers_count, owner_name, location:locations(msa, city)),
           to_agency:agencies!to_agency_id(id, agency_name, category, total_producers_count, owner_name, location:locations(msa, city))
         `)
-        .eq('from_agency.location.msa', regionRef)
         .order('movement_date', { ascending: false })
         .range(fromOffset, toOffset);
 
-      const { data: globalEvents } = await supabase
+      if (mErr) throw new Error("Movements Error: " + mErr.message);
+
+      const { data: globalEvents, error: eErr } = await supabase
         .from('carrier_events')
         .select(`
           id, event_date, event_type, producers_affected_count, notes,
           agency_id,
           carrier:carriers(carrier_name),
-          agency:agencies!inner(id, agency_name, category, total_producers_count, owner_name, location:locations!inner(msa, city))
+          agency:agencies(id, agency_name, category, total_producers_count, owner_name, location:locations(msa, city))
         `)
-        .eq('agency.location.msa', regionRef)
         .order('event_date', { ascending: false })
         .range(fromOffset, toOffset);
+
+      if (eErr) throw new Error("Events Error: " + eErr.message);
 
       if ((!globalMovements || globalMovements.length < PAGE_SIZE) && (!globalEvents || globalEvents.length < PAGE_SIZE)) {
         setHasMoreFeed(false);
@@ -166,13 +184,13 @@ export default function Dashboard() {
           if (m.from_agency) {
             ensureGlobalAgency(m.from_agency);
             if (!nextGrouped[m.from_agency.agency_name].defection.some(x => x.id === m.id)) {
-                nextGrouped[m.from_agency.agency_name].defection.push(m);
+              nextGrouped[m.from_agency.agency_name].defection.push(m);
             }
           }
           if (m.to_agency) {
             ensureGlobalAgency(m.to_agency);
             if (!nextGrouped[m.to_agency.agency_name].hire.some(x => x.id === m.id)) {
-                nextGrouped[m.to_agency.agency_name].hire.push(m);
+              nextGrouped[m.to_agency.agency_name].hire.push(m);
             }
           }
         });
@@ -181,11 +199,11 @@ export default function Dashboard() {
           if (e.agency) {
             ensureGlobalAgency(e.agency);
             if (e.event_type === 'APPOINTMENT_LOST' && !nextGrouped[e.agency.agency_name].carrier_loss.some(x => x.id === e.id)) {
-                nextGrouped[e.agency.agency_name].carrier_loss.push(e)
+              nextGrouped[e.agency.agency_name].carrier_loss.push(e)
             } else if (e.event_type === 'MASS_TERMINATION' && !nextGrouped[e.agency.agency_name].agency_termination.some(x => x.id === e.id)) {
-                nextGrouped[e.agency.agency_name].agency_termination.push(e)
+              nextGrouped[e.agency.agency_name].agency_termination.push(e)
             } else if (e.event_type === 'APPOINTMENT_GAINED' && !nextGrouped[e.agency.agency_name].new_appt.some(x => x.id === e.id)) {
-                nextGrouped[e.agency.agency_name].new_appt.push(e)
+              nextGrouped[e.agency.agency_name].new_appt.push(e)
             }
           }
         });
@@ -194,6 +212,7 @@ export default function Dashboard() {
       });
     } catch (err) {
       console.error(err);
+      setFetchError(err.message || "Unknown error");
     } finally {
       setIsFetchingFeed(false);
     }
@@ -407,13 +426,13 @@ export default function Dashboard() {
           .limit(150);
 
 
-        
+
 
 
         setMatrixDataCache(matrixData || []);
 
 
-        
+
 
 
         // Kick off initial feed fetch
@@ -1482,6 +1501,11 @@ export default function Dashboard() {
                 <div className="loading-dot" style={{ display: 'inline-block', marginRight: '10px', width: '6px', height: '6px', background: 'currentColor', borderRadius: '50%', animation: 'pulse 1s infinite' }}></div>
                 SYNCING INTELLIGENCE FEED...
               </div>
+            ) : fetchError ? (
+              <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--accent-red)' }}>
+                <h3>Critical Fetch Error</h3>
+                <p>{fetchError}</p>
+              </div>
             ) : (
               <>
 
@@ -1493,10 +1517,10 @@ export default function Dashboard() {
                         <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>No agencies match the current filters.</div>
                       ) : Object.entries(renderData)
                         .filter(([_, data]) => {
-                           if (competitorFilter === 'DIRECT COMPETITORS') {
-                             return data.overlap_score > 0 && data.threat_context && data.threat_context.length > 0;
-                           }
-                           return true;
+                          if (competitorFilter === 'DIRECT COMPETITORS') {
+                            return data.overlap_score > 0 && data.threat_context && data.threat_context.length > 0;
+                          }
+                          return true;
                         })
                         .sort((a, b) => {
                           const totalA = a[1].defection.length + a[1].carrier_loss.length + a[1].agency_termination.length;
@@ -1505,13 +1529,13 @@ export default function Dashboard() {
 
                           let mostRecentA = 0;
                           [...a[1].defection, ...a[1].carrier_loss, ...a[1].agency_termination].forEach(evt => {
-                             const t = new Date(evt.movement_date || evt.event_date).getTime();
-                             if (t > mostRecentA) mostRecentA = t;
+                            const t = new Date(evt.movement_date || evt.event_date).getTime();
+                            if (t > mostRecentA) mostRecentA = t;
                           });
                           let mostRecentB = 0;
                           [...b[1].defection, ...b[1].carrier_loss, ...b[1].agency_termination].forEach(evt => {
-                             const t = new Date(evt.movement_date || evt.event_date).getTime();
-                             if (t > mostRecentB) mostRecentB = t;
+                            const t = new Date(evt.movement_date || evt.event_date).getTime();
+                            if (t > mostRecentB) mostRecentB = t;
                           });
                           return mostRecentB - mostRecentA;
                         })
@@ -1550,6 +1574,25 @@ export default function Dashboard() {
                             return null;
                           }
 
+                          // Group terminations by carrier and date
+                          let groupedTerminations = {};
+                          [...carrier_loss, ...agency_termination].forEach(e => {
+                            const dateKey = new Date(e.event_date).toDateString();
+                            const carrierName = e.carrier?.carrier_name || 'Unknown Carrier';
+                            const key = `${carrierName}-${dateKey}`;
+                            if (!groupedTerminations[key]) {
+                              groupedTerminations[key] = {
+                                type: 'loss', 
+                                badge: 'TERMINATION', 
+                                date: e.event_date, 
+                                subject: carrierName,
+                                count: e.producers_affected_count || 1
+                              };
+                            } else {
+                              groupedTerminations[key].count += (e.producers_affected_count || 1);
+                            }
+                          });
+
                           // Aggregate feed
                           let feed = [
                             ...defection.map(m => ({
@@ -1562,19 +1605,13 @@ export default function Dashboard() {
                                 }
                                 : { Tenure: formatTenure(m.producer?.original_license_date), 'Region': data.msa || 'Unknown', 'Product Lines': 'Pending', 'Dest.': 'Unknown' }
                             })),
-                            ...[...carrier_loss, ...agency_termination].map(e => ({
-                              type: 'loss', badge: 'TERMINATION', date: e.event_date, subject: e.carrier?.carrier_name || 'Unknown Carrier',
-                              details: activeTab === 'watchlist'
-                                ? {
-                                  'Carrier Name': e.carrier?.carrier_name || 'Unknown',
-                                  'Event Date': new Date(e.event_date).toLocaleDateString(),
-                                  'Producers Affected': e.producers_affected_count || 0
-                                }
-                                : {
-                                  'Carrier Name': e.carrier?.carrier_name || 'Unknown',
-                                  'Event Date': new Date(e.event_date).toLocaleDateString(),
-                                  'Producers Affected': e.producers_affected_count || 0
-                                }
+                            ...Object.values(groupedTerminations).map(e => ({
+                              type: e.type, badge: e.badge, date: e.date, subject: e.subject,
+                              details: {
+                                'Lost Market': e.subject,
+                                'Detected': formatDetectedAgo(e.date),
+                                'Tactical Play': 'Raid Vulnerable Book'
+                              }
                             }))
                           ].sort((a, b) => new Date(b.date) - new Date(a.date));
 
@@ -1696,7 +1733,7 @@ export default function Dashboard() {
                                               <div className="ticker-inline-drawer">
                                                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '0.3rem' }}>
                                                   <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', letterSpacing: '0.5px' }}>EVENT DETAILS</span>
-                                                  <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>{new Date(item.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}</span>
+                                                  <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>{formatDetectedAgo(item.date).toUpperCase()}</span>
                                                 </div>
                                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
                                                   {Object.entries(item.details).map(([key, val]) => {
@@ -1982,28 +2019,6 @@ export default function Dashboard() {
                                   <div style={{ fontSize: '0.6rem', color: 'var(--text-muted)', marginBottom: '0.2rem' }}>PRINCIPAL / OWNER</div>
                                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                                     <span style={{ fontSize: '0.75rem', color: '#FFF', fontWeight: 'bold' }}>{ag.owner_name}</span>
-                                    <a
-                                      href={`https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent(ag.owner_name + ' ' + ag.name + ' Insurance')}`}
-                                      target="_blank"
-                                      rel="noreferrer"
-                                      style={{
-                                        display: 'inline-flex',
-                                        alignItems: 'center',
-                                        gap: '0.2rem',
-                                        background: '#0a66c2',
-                                        color: '#FFF',
-                                        padding: '0.15rem 0.4rem',
-                                        borderRadius: '3px',
-                                        textDecoration: 'none',
-                                        fontSize: '0.55rem',
-                                        fontWeight: 'bold',
-                                        transition: 'background 0.2s'
-                                      }}
-                                      onMouseOver={(e) => e.currentTarget.style.background = '#004182'}
-                                      onMouseOut={(e) => e.currentTarget.style.background = '#0a66c2'}
-                                    >
-                                      <span>in</span> SEARCH
-                                    </a>
                                   </div>
                                 </div>
                               )}
@@ -2109,6 +2124,7 @@ export default function Dashboard() {
                       totalProducers,
                       carrierName: cName,
                       eventDate: new Date(e.event_date).toLocaleDateString(),
+                      rawDate: e.event_date,
                       eventType,
                       vacuumLabel,
                       vacuumColor,
@@ -2146,7 +2162,7 @@ export default function Dashboard() {
                             <div style={{ flex: '1 1 200px', display: 'flex', flexDirection: 'column', gap: '0.4rem', borderLeft: '1px solid rgba(255,255,255,0.05)', paddingLeft: '1rem' }}>
                               <span style={{ fontSize: '0.6rem', color: 'var(--text-muted)', letterSpacing: '1px' }}>TERMINATED CARRIER</span>
                               <span style={{ fontSize: '1rem', fontWeight: 'bold', color: '#FFF', fontFamily: 'var(--font-heading)' }}>{evt.carrierName.toUpperCase()}</span>
-                              <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Effective: {evt.eventDate}</span>
+                              <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Detected: {formatDetectedAgo(evt.rawDate).toUpperCase()}</span>
                             </div>
 
                             <div style={{ flex: '1 1 250px', display: 'flex', flexDirection: 'column', gap: '0.4rem', background: 'rgba(255,255,255,0.03)', padding: '0.6rem', borderRadius: '4px' }}>
