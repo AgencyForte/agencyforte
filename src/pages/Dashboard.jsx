@@ -1160,7 +1160,7 @@ export default function Dashboard() {
             <div className="command-console">
 
 
-              <div className="console-body" style={{ display: 'flex', justifyContent: 'flex-start', alignItems: 'flex-end', width: '100%', flexWrap: 'nowrap', gap: '1.5rem', overflowX: 'auto', paddingBottom: '0.5rem' }}>
+              <div className="console-body" style={{ display: 'flex', justifyContent: 'flex-start', alignItems: 'flex-end', width: '100%', flexWrap: 'nowrap', gap: '1.5rem', overflow: 'visible', paddingBottom: '0.5rem' }}>
 
                 {activeTab === 'movements' && (
                   <>
@@ -1277,18 +1277,6 @@ export default function Dashboard() {
                           </button>
                         ))}
                       </div>
-                    </div>
-                    {/* Filter Pills */}
-                    <div className="console-section" style={{ display: 'flex', alignItems: 'center', paddingLeft: '1rem', borderLeft: '1px solid rgba(255,255,255,0.05)' }}>
-                      <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontFamily: 'var(--font-mono)', fontSize: '0.7rem', color: poachingVulnerableOnly ? '#FFF' : 'var(--text-muted)' }}>
-                        <input
-                          type="checkbox"
-                          checked={poachingVulnerableOnly}
-                          onChange={(e) => setPoachingVulnerableOnly(e.target.checked)}
-                          style={{ accentColor: 'var(--accent-red)', cursor: 'pointer', width: '14px', height: '14px' }}
-                        />
-                        SHOW VULNERABILITIES ONLY
-                      </label>
                     </div>
                     <div className="console-section">
                       <span className="section-label">VIEW PORTFOLIO</span>
@@ -1467,7 +1455,7 @@ export default function Dashboard() {
                           });
 
                           let activeTrustVoid = false;
-                          let daysRemaining = 0;
+                          let detectedDaysAgo = 0;
                           let trustVoidIntel = "";
 
                           if (mostRecentDisruption) {
@@ -1475,12 +1463,12 @@ export default function Dashboard() {
                             const diffTime = now - mostRecentDisruption;
                             const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
-                            if (diffDays <= 90 && diffDays >= -30) {
+                            if (diffDays >= -30) {
                               activeTrustVoid = true;
-                              daysRemaining = diffDays < 0 ? 90 : 90 - diffDays;
+                              detectedDaysAgo = diffDays < 0 ? 0 : diffDays;
                               trustVoidIntel = defection.length > 0
                                 ? `Lost ${defection.length} Producer(s). Clients are currently being reassigned and are highly susceptible to defection.`
-                                : `Lost Standard Market(s). Clients are facing premium hikes and rerating. Highly vulnerable.`;
+                                : `Market access terminated. Agency is forced to rewrite the affected book of business, creating severe administrative friction and a high-risk window for client disruption.`;
                             }
                           }
 
@@ -1534,7 +1522,7 @@ export default function Dashboard() {
                                     <span style={{ display: 'inline-block', width: '6px', height: '6px', borderRadius: '50%', background: 'var(--accent-blue)' }}></span>
                                     VULNERABILITY DETECTED
                                   </span>
-                                  <span style={{ color: '#FFF' }}>TRUST VOID WINDOW: {daysRemaining} DAYS REMAINING</span>
+                                  <span style={{ color: '#FFF' }}>{detectedDaysAgo === 0 ? 'DETECTED: TODAY' : `DETECTED: ${detectedDaysAgo} DAYS AGO`}</span>
                                 </div>
                               )}
 
@@ -1691,11 +1679,6 @@ export default function Dashboard() {
                                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', flex: 1 }}>
                                     <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', letterSpacing: '1px', fontFamily: 'var(--font-mono)' }}>INTELLIGENCE BRIEF</span>
                                     <span style={{ fontSize: '0.75rem', color: '#FFF', lineHeight: '1.4' }}>{trustVoidIntel}</span>
-                                  </div>
-                                  <div style={{ marginLeft: '1rem' }}>
-                                    <button style={{ background: 'transparent', color: '#FFF', border: '1px solid rgba(255,255,255,0.2)', padding: '0.6rem 1.2rem', borderRadius: '4px', fontSize: '0.75rem', fontFamily: 'var(--font-mono)', cursor: 'pointer', transition: 'all 0.2s' }} onMouseOver={(e) => { e.target.style.background = 'rgba(255,255,255,0.05)'; e.target.style.borderColor = 'rgba(255,255,255,0.4)'; }} onMouseOut={(e) => { e.target.style.background = 'transparent'; e.target.style.borderColor = 'rgba(255,255,255,0.2)'; }}>
-                                      TARGET TERRITORY
-                                    </button>
                                   </div>
                                 </div>
                               )}
