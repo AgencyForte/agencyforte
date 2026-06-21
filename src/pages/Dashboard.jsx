@@ -26,11 +26,14 @@ export default function Dashboard() {
   const [filterFitScore, setFilterFitScore] = useState('')
   const [filterMinRevenue, setFilterMinRevenue] = useState('')
   const [filterMinTenure, setFilterMinTenure] = useState('')
+  const [poachingVulnerableOnly, setPoachingVulnerableOnly] = useState(true)
   const [principalCarriers, setPrincipalCarriers] = useState([])
   const [showTerminateModal, setShowTerminateModal] = useState(false)
   const [valuationFilter, setValuationFilter] = useState('All Sizes')
   const [distressFilter, setDistressFilter] = useState('All Levels')
   const [sniperCarrierFilter, setSniperCarrierFilter] = useState('All Carriers')
+  const [sniperBookmarks, setSniperBookmarks] = useState([])
+  const [showSniperBookmarks, setShowSniperBookmarks] = useState(false)
 
   const initRegion = localStorage.getItem('market_region');
   const [selectedRegion, setSelectedRegion] = useState((initRegion === 'Houston' ? 'Greater Houston' : initRegion) || 'All Texas')
@@ -1106,7 +1109,7 @@ export default function Dashboard() {
               style={{ width: '90%', justifyContent: 'flex-start', margin: '0.3rem 0', padding: '0.4rem 0.8rem' }}
             >
               <span className="toggle-indicator"></span>
-              COMPETITORS
+              VULNERABILITY RADAR
             </button>
             <button
               className={`stealth-toggle ${activeTab === 'acquisition' ? 'active' : ''}`}
@@ -1157,7 +1160,7 @@ export default function Dashboard() {
             <div className="command-console">
 
 
-              <div className="console-body" style={{ display: 'flex', justifyContent: 'flex-start', alignItems: 'flex-end', width: '100%', flexWrap: 'wrap', gap: '3rem' }}>
+              <div className="console-body" style={{ display: 'flex', justifyContent: 'flex-start', alignItems: 'flex-end', width: '100%', flexWrap: 'nowrap', gap: '1.5rem', overflowX: 'auto', paddingBottom: '0.5rem' }}>
 
                 {activeTab === 'movements' && (
                   <>
@@ -1263,7 +1266,7 @@ export default function Dashboard() {
                     <div className="console-section">
                       <span className="section-label">THREAT VECTORS</span>
                       <div className="toggle-group">
-                        {['DEFECTION', 'TERMINATION', 'ACQUISITION', 'NEW MARKET'].map(vec => (
+                        {['DEFECTION', 'TERMINATION'].map(vec => (
                           <button
                             key={vec}
                             className={`stealth-toggle toggle-${vec.split(' ')[0].toLowerCase()} ${activeVectors.includes(vec) ? 'active' : ''}`}
@@ -1276,6 +1279,17 @@ export default function Dashboard() {
                       </div>
                     </div>
                     {/* Filter Pills */}
+                    <div className="console-section" style={{ display: 'flex', alignItems: 'center', paddingLeft: '1rem', borderLeft: '1px solid rgba(255,255,255,0.05)' }}>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontFamily: 'var(--font-mono)', fontSize: '0.7rem', color: poachingVulnerableOnly ? '#FFF' : 'var(--text-muted)' }}>
+                        <input
+                          type="checkbox"
+                          checked={poachingVulnerableOnly}
+                          onChange={(e) => setPoachingVulnerableOnly(e.target.checked)}
+                          style={{ accentColor: 'var(--accent-red)', cursor: 'pointer', width: '14px', height: '14px' }}
+                        />
+                        SHOW VULNERABILITIES ONLY
+                      </label>
+                    </div>
                     <div className="console-section">
                       <span className="section-label">VIEW PORTFOLIO</span>
                       <div className="filter-pills" style={{ display: 'flex', gap: '0.5rem', marginTop: '5px' }}>
@@ -1402,6 +1416,18 @@ export default function Dashboard() {
                         </div>
                       )}
                     </div>
+
+                    <div className="console-section" style={{ display: 'flex', alignItems: 'center', paddingLeft: '1rem', borderLeft: '1px solid rgba(255,255,255,0.05)' }}>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontFamily: 'var(--font-mono)', fontSize: '0.7rem', color: showSniperBookmarks ? '#FFF' : 'var(--text-muted)' }}>
+                        <input
+                          type="checkbox"
+                          checked={showSniperBookmarks}
+                          onChange={(e) => setShowSniperBookmarks(e.target.checked)}
+                          style={{ accentColor: 'var(--accent-blue)', cursor: 'pointer', width: '14px', height: '14px' }}
+                        />
+                        SHOW SAVED TARGETS ({sniperBookmarks.length})
+                      </label>
+                    </div>
                   </>
                 )}
               </div>
@@ -1424,12 +1450,44 @@ export default function Dashboard() {
                         <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>No agencies match the current filters.</div>
                       ) : Object.entries(renderData)
                         .sort((a, b) => {
-                          const totalA = a[1].hire.length + a[1].defection.length + a[1].carrier_loss.length + a[1].agency_termination.length + a[1].new_appt.length;
-                          const totalB = b[1].hire.length + b[1].defection.length + b[1].carrier_loss.length + b[1].agency_termination.length + b[1].new_appt.length;
+                          const totalA = a[1].defection.length + a[1].carrier_loss.length + a[1].agency_termination.length;
+                          const totalB = b[1].defection.length + b[1].carrier_loss.length + b[1].agency_termination.length;
                           return totalB - totalA;
                         })
                         .map(([agencyName, data], index) => {
-                          const { total_producers_count, defection, hire, carrier_loss, agency_termination, new_appt } = data;
+                          const { total_producers_count, defection, carrier_loss, agency_termination } = data;
+
+                          // Trust Void Calculation
+                          let mostRecentDisruption = null;
+                          [...defection, ...carrier_loss, ...agency_termination].forEach(evt => {
+                            const evtDate = new Date(evt.movement_date || evt.event_date);
+                            if (!mostRecentDisruption || evtDate > mostRecentDisruption) {
+                              mostRecentDisruption = evtDate;
+                            }
+                          });
+
+                          let activeTrustVoid = false;
+                          let daysRemaining = 0;
+                          let trustVoidIntel = "";
+
+                          if (mostRecentDisruption) {
+                            const now = new Date();
+                            const diffTime = now - mostRecentDisruption;
+                            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+                            if (diffDays <= 90 && diffDays >= -30) {
+                              activeTrustVoid = true;
+                              daysRemaining = diffDays < 0 ? 90 : 90 - diffDays;
+                              trustVoidIntel = defection.length > 0
+                                ? `Lost ${defection.length} Producer(s). Clients are currently being reassigned and are highly susceptible to defection.`
+                                : `Lost Standard Market(s). Clients are facing premium hikes and rerating. Highly vulnerable.`;
+                            }
+                          }
+
+                          // If filtering by Vulnerabilities Only
+                          if (poachingVulnerableOnly && !activeTrustVoid) {
+                            return null;
+                          }
 
                           // Aggregate feed
                           let feed = [
@@ -1442,16 +1500,6 @@ export default function Dashboard() {
                                   'Lines Affected': m.lines_affected?.join(', ') || 'Pending'
                                 }
                                 : { Tenure: formatTenure(m.producer?.original_license_date), 'Region': data.msa || 'Unknown', 'Product Lines': 'Pending', 'Dest.': 'Unknown' }
-                            })),
-                            ...hire.map(m => ({
-                              type: 'hire', badge: 'ACQUISITION', date: m.movement_date, subject: `${m.producer?.first_name || ''} ${m.producer?.last_name || ''}`.trim() || `NPN: ${m.producer?.npn}`, role: 'Producer',
-                              details: activeTab === 'watchlist'
-                                ? {
-                                  NPN: m.producer?.npn || 'Pending',
-                                  'Total Tenure': formatTenure(m.producer?.original_license_date),
-                                  'Lines Affected': m.lines_affected?.join(', ') || 'Pending'
-                                }
-                                : { Tenure: formatTenure(m.producer?.original_license_date), 'Region': data.msa || 'Unknown', 'Product Lines': 'Pending', 'Prev.': 'Unknown' }
                             })),
                             ...[...carrier_loss, ...agency_termination].map(e => ({
                               type: 'loss', badge: 'TERMINATION', date: e.event_date, subject: e.carrier?.carrier_name || 'Unknown Carrier',
@@ -1466,26 +1514,10 @@ export default function Dashboard() {
                                   'Event Date': new Date(e.event_date).toLocaleDateString(),
                                   'Producers Affected': e.producers_affected_count || 0
                                 }
-                            })),
-                            ...new_appt.map(e => ({
-                              type: 'appt', badge: 'NEW MARKET', date: e.event_date, subject: e.carrier?.carrier_name || 'Unknown Carrier',
-                              details: activeTab === 'watchlist'
-                                ? {
-                                  'Carrier Name': e.carrier?.carrier_name || 'Unknown',
-                                  'Event Date': new Date(e.event_date).toLocaleDateString(),
-                                  'Producers Affected': e.producers_affected_count || 0
-                                }
-                                : {
-                                  'Carrier Name': e.carrier?.carrier_name || 'Unknown',
-                                  'Event Date': new Date(e.event_date).toLocaleDateString(),
-                                  'Producers Affected': e.producers_affected_count || 0
-                                }
                             }))
                           ].sort((a, b) => new Date(b.date) - new Date(a.date));
 
-                          let statHires = hire.length;
                           let statExits = defection.length;
-                          let statNewAppts = new_appt.length;
                           let statLostAppts = carrier_loss.length + agency_termination.length;
 
 
@@ -1494,10 +1526,20 @@ export default function Dashboard() {
                           feed.sort((a, b) => new Date(b.date) - new Date(a.date));
 
                           return (
-                            <div className="intelligence-card" key={`watch-${index}`}>
+                            <div className="intelligence-card" key={`watch-${index}`} style={{ borderLeft: activeTrustVoid ? '1px solid rgba(255,255,255,0.3)' : '1px solid transparent', opacity: activeTrustVoid ? 1 : 0.6 }}>
+
+                              {activeTrustVoid && (
+                                <div style={{ background: 'rgba(255,255,255,0.03)', borderBottom: '1px solid rgba(255,255,255,0.05)', color: 'var(--text-muted)', padding: '0.4rem 1rem', fontSize: '0.7rem', fontFamily: 'var(--font-mono)', letterSpacing: '1px', display: 'flex', justifyContent: 'space-between' }}>
+                                  <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                    <span style={{ display: 'inline-block', width: '6px', height: '6px', borderRadius: '50%', background: 'var(--accent-blue)' }}></span>
+                                    VULNERABILITY DETECTED
+                                  </span>
+                                  <span style={{ color: '#FFF' }}>TRUST VOID WINDOW: {daysRemaining} DAYS REMAINING</span>
+                                </div>
+                              )}
 
                               {/* 1. Header (Top-Span) */}
-                              <div className="card-top-bar">
+                              <div className="card-top-bar" style={{ paddingTop: activeTrustVoid ? '0.8rem' : '1.2rem' }}>
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
                                   <h3 style={{ margin: 0, fontSize: '1.2rem', color: '#FFF' }}>{agencyName}</h3>
                                   <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'capitalize' }}>
@@ -1537,21 +1579,13 @@ export default function Dashboard() {
 
                               {/* 2. Operations (Split Middle) */}
                               <div className="card-middle-split">
-                                <div className="strip-analytics">
+                                <div className="strip-analytics" style={{ justifyContent: 'center', gap: '2rem' }}>
                                   <div className="stat-row">
-                                    <span className="stat-label">Hires</span>
-                                    <span className="stat-value" style={{ color: statHires > 0 ? 'var(--text-muted)' : 'inherit' }}>{statHires}</span>
-                                  </div>
-                                  <div className="stat-row">
-                                    <span className="stat-label">Exits</span>
+                                    <span className="stat-label" style={{ fontSize: '0.65rem' }}>Producer Exits</span>
                                     <span className="stat-value" style={{ color: statExits > 0 ? '#D97706' : 'inherit' }}>{statExits}</span>
                                   </div>
                                   <div className="stat-row">
-                                    <span className="stat-label">New Appts</span>
-                                    <span className="stat-value" style={{ color: statNewAppts > 0 ? 'var(--text-muted)' : 'inherit' }}>{statNewAppts}</span>
-                                  </div>
-                                  <div className="stat-row">
-                                    <span className="stat-label">Lost Appts</span>
+                                    <span className="stat-label" style={{ fontSize: '0.65rem' }}>Terminated Appts</span>
                                     <span className="stat-value" style={{ color: statLostAppts > 0 ? 'var(--accent-red)' : 'inherit' }}>{statLostAppts}</span>
                                   </div>
                                 </div>
@@ -1651,6 +1685,20 @@ export default function Dashboard() {
                                   </div>
                                 </div>
                               </div>
+
+                              {activeTrustVoid && (
+                                <div style={{ padding: '1rem 1.5rem', background: 'rgba(255, 255, 255, 0.02)', borderTop: '1px solid rgba(255, 255, 255, 0.05)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', flex: 1 }}>
+                                    <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', letterSpacing: '1px', fontFamily: 'var(--font-mono)' }}>INTELLIGENCE BRIEF</span>
+                                    <span style={{ fontSize: '0.75rem', color: '#FFF', lineHeight: '1.4' }}>{trustVoidIntel}</span>
+                                  </div>
+                                  <div style={{ marginLeft: '1rem' }}>
+                                    <button style={{ background: 'transparent', color: '#FFF', border: '1px solid rgba(255,255,255,0.2)', padding: '0.6rem 1.2rem', borderRadius: '4px', fontSize: '0.75rem', fontFamily: 'var(--font-mono)', cursor: 'pointer', transition: 'all 0.2s' }} onMouseOver={(e) => { e.target.style.background = 'rgba(255,255,255,0.05)'; e.target.style.borderColor = 'rgba(255,255,255,0.4)'; }} onMouseOut={(e) => { e.target.style.background = 'transparent'; e.target.style.borderColor = 'rgba(255,255,255,0.2)'; }}>
+                                      TARGET TERRITORY
+                                    </button>
+                                  </div>
+                                </div>
+                              )}
 
                               {/* 3. Footnote (Bottom-Span) */}
                               {data.threat_context?.length > 0 && (
@@ -1962,6 +2010,9 @@ export default function Dashboard() {
                     if (sniperCarrierFilter !== 'All Carriers' && cName.toUpperCase() !== sniperCarrierFilter.toUpperCase()) return;
                     if (cutoffDate && new Date(e.event_date) < cutoffDate) return;
 
+                    const eventId = e.id || `${agencyName}-${cName}-${e.event_date}`;
+                    if (showSniperBookmarks && !sniperBookmarks.includes(eventId)) return;
+
                     // Distress Context
                     let otherTerminations = (data.carrier_loss?.length || 0) + (data.agency_termination?.length || 0) - 1;
 
@@ -1987,7 +2038,7 @@ export default function Dashboard() {
                     }
 
                     sniperEvents.push({
-                      id: e.id || Math.random().toString(),
+                      id: eventId,
                       agencyName,
                       city: data.city || 'Texas',
                       totalProducers,
@@ -2037,6 +2088,21 @@ export default function Dashboard() {
                               <span style={{ fontSize: '0.6rem', color: 'var(--text-muted)', letterSpacing: '1px' }}>INTELLIGENCE BRIEF</span>
                               <span style={{ fontSize: '0.7rem', color: evt.vacuumColor, fontWeight: 'bold', marginBottom: '0.1rem' }}>{evt.vacuumLabel}</span>
                               <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', lineHeight: '1.4' }}>{evt.intelBrief}</span>
+                            </div>
+
+                            <div style={{ flex: '0 0 auto', display: 'flex', alignItems: 'center', gap: '0.8rem' }}>
+                              <button
+                                onClick={() => {
+                                  if (sniperBookmarks.includes(evt.id)) {
+                                    setSniperBookmarks(prev => prev.filter(id => id !== evt.id));
+                                  } else {
+                                    setSniperBookmarks(prev => [...prev, evt.id]);
+                                  }
+                                }}
+                                style={{ background: 'transparent', color: sniperBookmarks.includes(evt.id) ? 'var(--accent-blue)' : 'var(--text-muted)', border: `1px solid ${sniperBookmarks.includes(evt.id) ? 'var(--accent-blue)' : 'rgba(255,255,255,0.1)'}`, padding: '0.6rem 0.8rem', borderRadius: '4px', fontSize: '0.75rem', fontFamily: 'var(--font-mono)', cursor: 'pointer', transition: 'all 0.2s' }}
+                              >
+                                {sniperBookmarks.includes(evt.id) ? '★ SAVED' : '☆ SAVE'}
+                              </button>
                             </div>
                           </div>
                         </div>
