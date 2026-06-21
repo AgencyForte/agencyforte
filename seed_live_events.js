@@ -61,6 +61,7 @@ async function runDiff() {
   
   const discoveredProducers = new Map(); // ProducerNPN -> { name }
   const discoveredCarriers = new Set(); // CarrierName
+  const agencyOwners = new Map(); // AgencyNPN -> { name, npn }
 
   // --- PHASE 1: Parse Day 1 ---
   console.log('\nStreaming Day 1 Relationships...');
@@ -105,6 +106,19 @@ async function runDiff() {
     day2Producers.get(agencyNpn).add(prodNpn);
     
     discoveredProducers.set(prodNpn, { name: row['Licensee name'], active_date: row['Association begin date'] });
+
+    const role = row['Association type'];
+    const targetRoles = [
+      'Officer/Director', 'Owner', 'Member/Owner', 
+      'Desig-Resp-Lic-Person', 'Partner', 'Qualifying Active Officer',
+      'General Partner', 'LS-Officer/Director'
+    ];
+    if (targetRoles.includes(role)) {
+      if (!agencyOwners.has(agencyNpn)) {
+        agencyOwners.set(agencyNpn, { name: row['Licensee name'], npn: prodNpn });
+      }
+    }
+
     d2RelsCount++;
   });
   console.log(`Tracked ${d2RelsCount} Day 2 Producer Relationships for Targets.`);
@@ -279,6 +293,17 @@ async function runDiff() {
   for (let i = 0; i < carrierEvents.length; i += 500) {
     await supabase.from('carrier_events').delete().neq('id', 'dummy');
     await supabase.from('carrier_events').insert(carrierEvents.slice(i, i + 500));
+  }
+
+  console.log(`Updating ${agencyOwners.size} Agencies with Owner Information...`);
+  for (const [agencyNpn, owner] of agencyOwners.entries()) {
+    const agencyId = targetAgencies.get(agencyNpn);
+    if (agencyId) {
+      await supabase.from('agencies').update({
+        owner_name: owner.name,
+        owner_npn: owner.npn
+      }).eq('id', agencyId);
+    }
   }
 
   console.log('✅ ALL DIFF EVENTS SEEDED SUCCESSFULLY!');

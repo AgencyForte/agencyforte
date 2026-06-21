@@ -7,7 +7,7 @@ export default function Dashboard() {
   const location = useLocation()
   const USER_EMAIL = location.state?.email || 'principal@agencyforte.com'
 
-  const [activeTab, setActiveTab] = useState('producers')
+  const [activeTab, setActiveTab] = useState('acquisition')
   const [configModalOpen, setConfigModalOpen] = useState(false)
   const [configTitle, setConfigTitle] = useState('')
   const [openTrays, setOpenTrays] = useState({})
@@ -46,6 +46,7 @@ export default function Dashboard() {
   const [trackedProducerIds, setTrackedProducerIds] = useState([])
   const [watchlistedAgencyIds, setWatchlistedAgencyIds] = useState([])
   const [loading, setLoading] = useState(true)
+  const [matrixCompetitorIds, setMatrixCompetitorIds] = useState([])
 
   const [currentUserId, setCurrentUserId] = useState(null)
   const [producerSearchQuery, setProducerSearchQuery] = useState('')
@@ -250,13 +251,14 @@ export default function Dashboard() {
           .from('competitor_relationships')
           .select(`
              competitor_agency_id, competition_score, overlap_carriers_count,
-             competitor_agency:agencies!competitor_agency_id(id, agency_name, category, total_producers_count, location:locations(msa, city))
+             competitor_agency:agencies!competitor_agency_id(id, agency_name, category, total_producers_count, owner_name, location:locations(msa, city))
           `)
           .eq('base_agency_id', userData.home_agency_id)
           .order('competition_score', { ascending: false })
           .limit(150);
           
         const competitorIds = matrixData ? matrixData.map(m => m.competitor_agency_id) : [];
+        setMatrixCompetitorIds(competitorIds);
         const quotedCompetitorIds = competitorIds.length > 0 ? competitorIds.map(id => `"${id}"`).join(',') : '""';
 
         const { data: globalMovements } = await supabase
@@ -265,8 +267,8 @@ export default function Dashboard() {
             id, movement_date, movement_type, lines_affected,
             from_agency_id, to_agency_id,
             producer:producers(npn, first_name, last_name, original_license_date, active_appointments_count),
-            from_agency:agencies!from_agency_id(id, agency_name, category, total_producers_count, location:locations(msa, city)),
-            to_agency:agencies!to_agency_id(id, agency_name, category, total_producers_count, location:locations(msa, city))
+            from_agency:agencies!from_agency_id(id, agency_name, category, total_producers_count, owner_name, location:locations(msa, city)),
+            to_agency:agencies!to_agency_id(id, agency_name, category, total_producers_count, owner_name, location:locations(msa, city))
           `)
           .or(`from_agency_id.in.(${quotedCompetitorIds}),to_agency_id.in.(${quotedCompetitorIds})`)
           .order('movement_date', { ascending: false })
@@ -278,7 +280,7 @@ export default function Dashboard() {
             id, event_date, event_type, producers_affected_count, notes,
             agency_id,
             carrier:carriers(carrier_name),
-            agency:agencies!agency_id(id, agency_name, category, total_producers_count, location:locations(msa, city))
+            agency:agencies!agency_id(id, agency_name, category, total_producers_count, owner_name, location:locations(msa, city))
           `)
           .in('agency_id', competitorIds)
           .order('event_date', { ascending: false })
@@ -315,9 +317,12 @@ export default function Dashboard() {
 
             globalGrouped[ag.agency_name] = {
               id: ag.id,
+              name: ag.agency_name,
+              agency_name: ag.agency_name,
               total_producers_count: ag.total_producers_count,
               msa: ag.location?.msa,
               city: ag.location?.city,
+              owner_name: ag.owner_name,
               threat_context: threatContext,
               overlap_score: overlapScore,
               defection: [], hire: [], carrier_loss: [], agency_termination: [], new_appt: [], jit: []
@@ -778,8 +783,12 @@ export default function Dashboard() {
     const delayDebounceFn = setTimeout(async () => {
       setIsSearchingProducers(true);
       try {
+        const fiveYearsAgo = new Date();
+        fiveYearsAgo.setFullYear(fiveYearsAgo.getFullYear() - 5);
+        const cutoffDate = fiveYearsAgo.toISOString();
+
         if (producerFilter === 'DEFECTIONS') {
-          const { data, error } = await supabase.from('producer_movements')
+          let q = supabase.from('producer_movements')
             .select(`
               movement_date,
               producer:producers!inner(id, first_name, last_name, npn, original_license_date),
@@ -787,8 +796,16 @@ export default function Dashboard() {
               to_agency:agencies!to_agency_id(agency_name)
             `)
             .eq('movement_type', 'EXITED')
+            .lte('producer.original_license_date', cutoffDate)
             .order('movement_date', { ascending: false })
             .limit(100);
+
+          if (matrixCompetitorIds.length > 0) {
+            const quotedCompetitorIds = matrixCompetitorIds.map(id => `"${id}"`).join(',');
+            q = q.or(`from_agency_id.in.(${quotedCompetitorIds}),to_agency_id.in.(${quotedCompetitorIds})`);
+          }
+
+          const { data, error } = await q;
 
           if (error) throw error;
 
@@ -833,6 +850,7 @@ export default function Dashboard() {
 
           let query = supabase.from('producers')
             .select(selectString)
+            .lte('original_license_date', cutoffDate)
             .limit(100);
 
           if (producerFilter === 'TRACKED') {
@@ -842,6 +860,8 @@ export default function Dashboard() {
               return;
             }
             query = query.in('id', trackedProducerIds);
+          } else if (matrixCompetitorIds.length > 0) {
+            query = query.in('current_agency_id', matrixCompetitorIds);
           }
 
           if (producerSearchQuery) {
@@ -1019,12 +1039,12 @@ export default function Dashboard() {
               COMPETITORS
             </button>
             <button
-              className={`stealth-toggle ${activeTab === 'producers' ? 'active' : ''}`}
-              onClick={() => setActiveTab('producers')}
+              className={`stealth-toggle ${activeTab === 'acquisition' ? 'active' : ''}`}
+              onClick={() => setActiveTab('acquisition')}
               style={{ width: '90%', justifyContent: 'flex-start', margin: '0.3rem 0', padding: '0.4rem 0.8rem' }}
             >
               <span className="toggle-indicator"></span>
-              TALENT RADAR
+              ACQUISITION RADAR
             </button>
           </nav>
         </div>
@@ -1217,7 +1237,7 @@ export default function Dashboard() {
                   </>
                 )}
 
-                {activeTab === 'producers' && (
+                {activeTab === 'acquisition' && (
                   <>
                     <div className="console-section">
                       <span className="section-label">VIEW PORTFOLIO</span>
@@ -1515,408 +1535,235 @@ export default function Dashboard() {
               </>
             )}
 
-            {!loading && activeTab === 'producers' && (() => {
-              const augmentedProducers = registryProducers.map(p => {
-                const agName = p.current_agency?.agency_name || p.previous_agency;
-                const mData = agName && marketData[agName] ? marketData[agName] : null;
-                let flightRisk = 'Low';
-                let flightRiskColor = 'var(--text-muted)';
-                let trigger = null;
-                let triggerPlay = null;
+            {!loading && activeTab === 'acquisition' && (() => {
+              // 1. Convert renderData to an array of agencies
+              let agencies = Object.values(renderData);
 
-                const formatRelativeTime = (dateStr) => {
-                  if (!dateStr) return 'recently';
-                  const days = Math.floor((new Date() - new Date(dateStr)) / (1000 * 60 * 60 * 24));
-                  if (days === 0) return 'today';
-                  if (days === 1) return 'yesterday';
-                  if (days < 7) return `${days} days ago`;
-                  if (days < 30) return `${Math.floor(days / 7)} weeks ago`;
-                  if (days < 365) return `${Math.floor(days / 30)} months ago`;
-                  return `${Math.floor(days / 365)} years ago`;
-                };
+              // 2. Calculate Distress Scores & Revenue
+              agencies = agencies.map(ag => {
+                let score = 0;
+                let triggers = [];
 
-                if (mData) {
-                  if (mData.agency_termination && mData.agency_termination.length > 0) {
-                    trigger = 'CARRIER SQUEEZE';
-                    flightRisk = 'High';
-                    flightRiskColor = 'var(--accent-red)';
-                    
-                    const lostCarriersData = mData.agency_termination.map(e => ({ name: e.carrier?.carrier_name, date: e.event_date })).filter(e => e.name);
-                    const lostCarriers = lostCarriersData.map(e => e.name).join(', ');
-                    const latestDate = lostCarriersData.length > 0 ? lostCarriersData.reduce((a, b) => new Date(a.date) > new Date(b.date) ? a : b).date : null;
-                    const relTime = formatRelativeTime(latestDate);
-                    
-                    triggerPlay = {
-                       fact: `${agName} lost their appointment with ${lostCarriers} ${relTime}.`,
-                       play: `Offer immediate placement options to roll their displaced ${lostCarriers} book.`
-                    };
-                  } else if (mData.carrier_loss && mData.carrier_loss.length > 0) {
-                    trigger = 'CARRIER ATTRITION';
-                    flightRisk = 'Medium';
-                    flightRiskColor = '#F59E0B';
-                    
-                    const attrCarriersData = mData.carrier_loss.map(e => ({ name: e.carrier?.carrier_name, date: e.event_date })).filter(e => e.name);
-                    const attrCarriers = attrCarriersData.map(e => e.name).join(', ');
-                    const latestDate = attrCarriersData.length > 0 ? attrCarriersData.reduce((a, b) => new Date(a.date) > new Date(b.date) ? a : b).date : null;
-                    const relTime = formatRelativeTime(latestDate);
-                    
-                    triggerPlay = {
-                       fact: `${agName} is experiencing loss of ${attrCarriers} ${relTime}.`,
-                       play: `Highlight your agency's stable carrier relationships and superior market access.`
-                    };
-                  } else if (mData.defection && mData.defection.length >= 3) {
-                    trigger = 'M&A / ATTRITION';
-                    flightRisk = 'Medium';
-                    flightRiskColor = '#F59E0B';
-                    
-                    const exitDates = mData.defection.map(e => e.movement_date).filter(Boolean);
-                    const latestExit = exitDates.length > 0 ? exitDates.reduce((a, b) => new Date(a) > new Date(b) ? a : b) : null;
-                    const relTime = formatRelativeTime(latestExit);
-                    
-                    triggerPlay = {
-                       fact: `${agName} has lost ${mData.defection.length} producers, most recently ${relTime}.`,
-                       play: `Capitalize on instability. Probe for compensation or cultural dissatisfaction.`
-                    };
-                  }
-                }
+                // --- Insolvency & Noise Filter ---
+                const noiseBlocklist = [
+                  'Weston Property & Casualty Insurance Company', 
+                  'United Property & Casualty', 
+                  'FedNat', 
+                  'Humana Insurance Company',
+                  'Aetna',
+                  'UnitedHealthcare'
+                ];
+                const isNoise = (name) => !name || noiseBlocklist.some(b => name.includes(b));
 
-                // 1. Industry Tenure
-                let industryTenure = 'Unknown';
-                if (p.original_license_date) {
-                  const years = new Date().getFullYear() - new Date(p.original_license_date).getFullYear();
-                  industryTenure = years === 0 ? '< 1 Year' : `${years} Years`;
-                }
+                const defectionCount = (ag.defection || []).length;
+                const hireCount = (ag.hire || []).length;
+                const netHeadcount = hireCount - defectionCount;
+                const totalProducers = ag.total_producers_count || 1;
 
-                // 2. Carrier Overlap & Fit Score
-                let fitScore = 'Unknown Fit';
-                let fitColor = 'var(--text-muted)';
-                let overlapCount = 0;
-                let totalProdCarriers = 0;
-                
-                if (p.producer_carrier_appointments && p.producer_carrier_appointments.length > 0 && principalCarriers.length > 0) {
-                  totalProdCarriers = p.producer_carrier_appointments.length;
-                  const prodCarrierNames = p.producer_carrier_appointments.map(a => a.carrier?.carrier_name).filter(Boolean);
-                  overlapCount = prodCarrierNames.filter(c => principalCarriers.includes(c)).length;
-                  
-                  const overlapPct = overlapCount / totalProdCarriers;
-                  if (overlapPct >= 0.5) {
-                    fitScore = 'High Fit';
-                    fitColor = 'var(--accent-green)';
-                  } else if (overlapPct >= 0.2) {
-                    fitScore = 'Medium Fit';
-                    fitColor = '#F59E0B';
+                if (netHeadcount < 0) {
+                  score += Math.abs(netHeadcount) * 20;
+                  if (defectionCount >= 2 && defectionCount >= totalProducers / 2) {
+                    triggers.push(`Mass Exodus (${defectionCount} exits)`);
+                    score += 40;
                   } else {
-                    fitScore = 'Low Fit';
-                    fitColor = 'var(--accent-red)';
+                    triggers.push(`Lost ${Math.abs(netHeadcount)} Producers`);
                   }
-                } else if (p.producer_carrier_appointments && p.producer_carrier_appointments.length > 0) {
-                   totalProdCarriers = p.producer_carrier_appointments.length;
+                } else if (totalProducers === 1 && hireCount === 0) {
+                  triggers.push('Ideal Book-of-Business Roll-up');
+                } else if (totalProducers <= 2 && hireCount === 0) {
+                  triggers.push('Stagnant / Aging Agency');
+                  score += 15;
                 }
 
-                // 3. Target Value (Estimated Revenue)
-                let estRevenue = 'Unknown';
-                if (p.estimated_premium) {
-                  const match = p.estimated_premium.match(/[\d.]+/);
-                  if (match) {
-                    const num = parseFloat(match[0]);
-                    const suffix = p.estimated_premium.includes('M') ? 'k' : '';
-                    if (p.estimated_premium.includes('M')) {
-                      estRevenue = `$${Math.round(num * 100)}${suffix}`;
-                    } else if (p.estimated_premium.includes('k')) {
-                      estRevenue = `$${Math.round(num * 0.1)}k`;
-                    } else {
-                      estRevenue = p.estimated_premium;
-                    }
-                  }
+                const wholesaleBlocklist = [
+                  'Home State County Mutual',
+                  'Gainsco',
+                  'Elephant',
+                  'Mendota',
+                  'Consumers County',
+                  'Old American County',
+                  'Bristol West',
+                  'Dairyland'
+                ];
+                const isWholesale = (name) => name && wholesaleBlocklist.some(w => name.includes(w));
+
+                const cleanCarrierLosses = (ag.carrier_loss || [])
+                  .map(e => e.carrier?.carrier_name)
+                  .filter(name => !isNoise(name));
+                const uniqueLostNames = Array.from(new Set(cleanCarrierLosses));
+                
+                const standardLost = uniqueLostNames.filter(n => !isWholesale(n));
+                const wholesaleLost = uniqueLostNames.filter(n => isWholesale(n));
+
+                if (standardLost.length > 0) {
+                  score += standardLost.length * 30;
+                  triggers.push(`Lost Direct Contract: ${standardLost.slice(0, 2).join(', ')}${standardLost.length > 2 ? '...' : ''}`);
                 }
+                const noDirectMarkets = (ag.agency_carrier_appointments || []).length === 0;
+
+                if (wholesaleLost.length > 0) {
+                  score += wholesaleLost.length * 5; // Minor penalty for losing a wholesale sub-code
+                  if (noDirectMarkets) {
+                    triggers.push(`Wholesaler Dependent: No direct standard markets remaining; non-standard auto shifted to ${wholesaleLost[0]}${wholesaleLost.length > 1 ? '...' : ''}`);
+                  } else {
+                    triggers.push(`Shifted non-standard book to ${wholesaleLost[0]}${wholesaleLost.length > 1 ? '...' : ''}`);
+                  }
+                } else if (noDirectMarkets) {
+                  triggers.push('Wholesaler Dependent (No Direct Markets)');
+                }
+
+                if (noDirectMarkets) {
+                  score += 25;
+                }
+
+                const cleanTerminations = (ag.agency_termination || [])
+                  .map(e => e.carrier?.carrier_name)
+                  .filter(name => !isNoise(name));
+                const uniqueTermNames = Array.from(new Set(cleanTerminations));
+
+                const standardTerms = uniqueTermNames.filter(n => !isWholesale(n));
+
+                if (standardTerms.length > 0) {
+                  score += standardTerms.length * 50;
+                  triggers.push(`Direct Carrier Squeeze: ${standardTerms.slice(0, 2).join(', ')}${standardTerms.length > 2 ? '...' : ''}`);
+                }
+
+                let distressLevel = 'Low';
+                let distressColor = 'var(--accent-green)';
+                if (score > 60) { distressLevel = 'Critical'; distressColor = 'var(--accent-red)'; }
+                else if (score >= 20) { distressLevel = 'Elevated'; distressColor = '#F59E0B'; }
+
+                const baseRevenue = totalProducers * 200000;
+                const baseMultiple = baseRevenue < 300000 ? 1.8 : 2.5;
+
+                let discountTotal = 0;
+                if (standardLost.length > 0) discountTotal += 0.25;
+                if (noDirectMarkets) discountTotal += 0.20;
+                if (totalProducers <= 2 && hireCount === 0 && totalProducers !== 1) discountTotal += 0.15;
+                if (totalProducers === 1) discountTotal += 0.20;
+
+                const adjustedMultiple = Math.max(0.5, baseMultiple - discountTotal);
+                const probableValLow = baseRevenue * adjustedMultiple;
+                const probableValHigh = baseRevenue * (adjustedMultiple + 0.35);
+                const strategicValue = baseRevenue * baseMultiple;
 
                 return {
-                  ...p,
-                  flightRisk,
-                  flightRiskColor,
-                  trigger,
-                  triggerPlay,
-                  industryTenure,
-                  fitScore,
-                  fitColor,
-                  overlapCount,
-                  totalProdCarriers,
-                  estRevenue
-                }
-              }).filter(p => {
-                if (filterVector && p.trigger !== filterVector) return false;
-                
-                if (filterName) {
-                  const searchStr = `${p.first_name} ${p.last_name}`.toLowerCase();
-                  if (!searchStr.includes(filterName.toLowerCase())) return false;
-                }
-                
-                if (filterSpecialty) {
-                  const spec = (p.specialty || p.lob || '').toLowerCase();
-                  if (!spec.includes(filterSpecialty.toLowerCase())) return false;
-                }
-                
-                if (filterFitScore && p.fitScore !== filterFitScore) return false;
-                
-                if (filterMinTenure) {
-                  const years = p.original_license_date ? new Date().getFullYear() - new Date(p.original_license_date).getFullYear() : 0;
-                  if (years < parseInt(filterMinTenure)) return false;
-                }
-                
-                if (filterMinRevenue) {
-                  if (!p.estimated_premium) return false;
-                  const match = p.estimated_premium.match(/[\d.]+/);
-                  if (match) {
-                    const num = parseFloat(match[0]);
-                    let rawRev = 0;
-                    if (p.estimated_premium.includes('M')) rawRev = num * 100000; // 10% of 1M premium = 100k revenue
-                    else if (p.estimated_premium.includes('k')) rawRev = num * 100; // 10% of 100k premium = 10k revenue
-                    
-                    if (rawRev < parseInt(filterMinRevenue)) return false;
-                  } else {
-                    return false;
-                  }
-                }
-                
-                return true;
+                  ...ag,
+                  distressScore: score,
+                  distressLevel,
+                  distressColor,
+                  triggers,
+                  baseRevenue,
+                  adjustedMultiple,
+                  probableValLow,
+                  probableValHigh,
+                  strategicValue,
+                  netHeadcount
+                };
               });
+
+              // 3. Sort by Distress Score descending
+              agencies.sort((a, b) => b.distressScore - a.distressScore);
 
               return (
                 <div className="directory-container" style={{ marginTop: '1.5rem', paddingBottom: '3rem' }}>
-                  {/* Command Center Filters */}
                   <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: '8px', padding: '1.5rem', marginBottom: '1.5rem' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-                      <span style={{ fontSize: '0.8rem', color: '#FFF', fontWeight: 'bold', fontFamily: 'var(--font-mono)' }}>SCOUTING COMMAND CENTER</span>
-                      {(filterVector || filterFitScore || filterSpecialty || filterMinRevenue || filterMinTenure || filterName) && (
-                        <button 
-                          onClick={() => { setFilterVector(''); setFilterFitScore(''); setFilterSpecialty(''); setFilterMinRevenue(''); setFilterMinTenure(''); setFilterName(''); }}
-                          style={{ background: 'transparent', border: '1px solid var(--accent-red)', color: 'var(--accent-red)', padding: '0.3rem 0.6rem', borderRadius: '4px', fontSize: '0.65rem', cursor: 'pointer', fontFamily: 'var(--font-mono)' }}
-                        >
-                          RESET FILTERS
-                        </button>
-                      )}
-                    </div>
-                    
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem' }}>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', flex: 1, minWidth: '150px' }}>
-                        <label style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>OPPORTUNITY VECTOR</label>
-                        <select value={filterVector} onChange={e => setFilterVector(e.target.value)} style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: '#FFF', padding: '0.6rem', fontSize: '0.75rem', borderRadius: '4px', outline: 'none' }}>
-                          <option value="">All Vectors</option>
-                          <option value="CARRIER SQUEEZE">Carrier Squeeze (High Risk)</option>
-                          <option value="CARRIER ATTRITION">Carrier Attrition (Med Risk)</option>
-                          <option value="M&A / ATTRITION">Agency Attrition (Med Risk)</option>
-                        </select>
-                      </div>
-
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', flex: 1, minWidth: '150px' }}>
-                        <label style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>CARRIER FIT</label>
-                        <select value={filterFitScore} onChange={e => setFilterFitScore(e.target.value)} style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: '#FFF', padding: '0.6rem', fontSize: '0.75rem', borderRadius: '4px', outline: 'none' }}>
-                          <option value="">All Fits</option>
-                          <option value="High Fit">High Fit (>50% Overlap)</option>
-                          <option value="Medium Fit">Medium Fit (>20% Overlap)</option>
-                        </select>
-                      </div>
-
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', flex: 1, minWidth: '150px' }}>
-                        <label style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>SPECIALTY / LOB</label>
-                        <select value={filterSpecialty} onChange={e => setFilterSpecialty(e.target.value)} style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: '#FFF', padding: '0.6rem', fontSize: '0.75rem', borderRadius: '4px', outline: 'none' }}>
-                          <option value="">All Lines</option>
-                          <option value="Commercial">Commercial Lines</option>
-                          <option value="Personal">Personal Lines</option>
-                          <option value="Benefits">Employee Benefits</option>
-                          <option value="Life">Life &amp; Health</option>
-                          <option value="Agriculture">Agriculture</option>
-                          <option value="Surety">Surety / Bonds</option>
-                        </select>
-                      </div>
-
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', flex: 1, minWidth: '150px' }}>
-                        <label style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>MIN. REVENUE (EST)</label>
-                        <select value={filterMinRevenue} onChange={e => setFilterMinRevenue(e.target.value)} style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: '#FFF', padding: '0.6rem', fontSize: '0.75rem', borderRadius: '4px', outline: 'none' }}>
-                          <option value="">Any Size</option>
-                          <option value="100000">$100k+ Revenue</option>
-                          <option value="250000">$250k+ Revenue</option>
-                          <option value="500000">$500k+ Revenue</option>
-                          <option value="1000000">$1M+ Revenue</option>
-                        </select>
-                      </div>
-
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', flex: 1, minWidth: '150px' }}>
-                        <label style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>MIN. TENURE</label>
-                        <select value={filterMinTenure} onChange={e => setFilterMinTenure(e.target.value)} style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: '#FFF', padding: '0.6rem', fontSize: '0.75rem', borderRadius: '4px', outline: 'none' }}>
-                          <option value="">Any Tenure</option>
-                          <option value="3">3+ Years</option>
-                          <option value="5">5+ Years</option>
-                          <option value="10">10+ Years</option>
-                        </select>
-                      </div>
-                    </div>
-                    
-                    <div style={{ marginTop: '1rem' }}>
-                      <input
-                        type="text"
-                        placeholder="Search Producer Name..."
-                        value={filterName}
-                        onChange={e => setFilterName(e.target.value)}
-                        style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: '#FFF', padding: '0.6rem 1rem', fontSize: '0.75rem', borderRadius: '4px', outline: 'none' }}
-                      />
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: '0.8rem', color: '#FFF', fontWeight: 'bold', fontFamily: 'var(--font-mono)' }}>M&A INTELLIGENCE ENGINE</span>
+                      <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Mathematically ranking {agencies.length} agencies by vulnerability</span>
                     </div>
                   </div>
 
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                    {augmentedProducers.map((producer, index) => {
-                      const isTracked = trackedProducerIds.includes(producer.id);
+                    {agencies.map((ag, index) => {
+                      const formatter = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
                       
                       return (
-                        <div key={producer.id + '-' + index} style={{ display: 'flex', flexDirection: 'column', background: 'rgba(255, 255, 255, 0.02)', border: '1px solid rgba(255, 255, 255, 0.05)', borderRadius: '8px', overflow: 'hidden', transition: 'all 0.2s' }}>
-                          
-                          {/* Row Header - Full Width Horizontal Layout */}
-                          <div style={{ padding: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div key={ag.id + '-' + index} style={{ display: 'flex', flexDirection: 'column', background: 'rgba(255, 255, 255, 0.02)', border: '1px solid rgba(255, 255, 255, 0.05)', borderLeft: `3px solid ${ag.distressScore > 20 ? ag.distressColor : 'transparent'}`, borderRadius: '6px', overflow: 'hidden', transition: 'all 0.2s' }}>
+                          <div style={{ padding: '0.8rem 1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                             
-                            {/* Column 1: Identity & Tenure (30%) */}
-                            <div style={{ flex: '0 0 30%', display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                                <h3 style={{ margin: 0, fontSize: '1.1rem', color: '#FFF' }}>{producer.first_name || 'Unknown'} {producer.last_name || ''}</h3>
-                                {producer.trigger && (
-                                  <div style={{ background: 'rgba(255,42,85,0.1)', border: `1px solid ${producer.flightRiskColor}`, padding: '0.2rem 0.5rem', borderRadius: '4px', fontSize: '0.55rem', color: producer.flightRiskColor, fontFamily: 'var(--font-mono)', fontWeight: 'bold' }}>
-                                    ⚠ {producer.trigger}
+                            <div style={{ flex: '0 0 25%', display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                <h3 style={{ margin: 0, fontSize: '1rem', color: '#FFF' }}>{ag.name}</h3>
+                              </div>
+                              <div style={{ fontSize: '0.7rem', color: 'var(--accent-blue)' }}>{ag.city || 'Texas'}</div>
+                              <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.1rem' }}>
+                                <span style={{ fontSize: '0.65rem', color: '#FFF' }}>{ag.total_producers_count} Producers</span>
+                                <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>|</span>
+                                <span style={{ fontSize: '0.65rem', color: '#FFF' }}>{(ag.category || '').replace(/_/g, ' ')}</span>
+                              </div>
+                              {ag.owner_name && (
+                                <div style={{ marginTop: '0.8rem', padding: '0.4rem', background: 'rgba(255,255,255,0.03)', borderRadius: '4px', borderLeft: '2px solid var(--accent-blue)' }}>
+                                  <div style={{ fontSize: '0.6rem', color: 'var(--text-muted)', marginBottom: '0.2rem' }}>PRINCIPAL / OWNER</div>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                    <span style={{ fontSize: '0.75rem', color: '#FFF', fontWeight: 'bold' }}>{ag.owner_name}</span>
+                                    <a 
+                                      href={`https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent(ag.owner_name + ' ' + ag.name + ' Insurance')}`}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      style={{ 
+                                        display: 'inline-flex', 
+                                        alignItems: 'center', 
+                                        gap: '0.2rem', 
+                                        background: '#0a66c2', 
+                                        color: '#FFF', 
+                                        padding: '0.15rem 0.4rem', 
+                                        borderRadius: '3px', 
+                                        textDecoration: 'none', 
+                                        fontSize: '0.55rem', 
+                                        fontWeight: 'bold',
+                                        transition: 'background 0.2s'
+                                      }}
+                                      onMouseOver={(e) => e.currentTarget.style.background = '#004182'}
+                                      onMouseOut={(e) => e.currentTarget.style.background = '#0a66c2'}
+                                    >
+                                      <span>in</span> SEARCH
+                                    </a>
                                   </div>
-                                )}
-                              </div>
-                              <div style={{ fontSize: '0.75rem', color: 'var(--accent-blue)' }}>{producer.current_agency?.agency_name || producer.previous_agency || 'Independent'}</div>
-                              <div style={{ display: 'flex', gap: '1rem', marginTop: '0.2rem' }}>
-                                <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>NPN: {producer.npn || 'Pending'}</span>
-                                <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>|</span>
-                                <span style={{ fontSize: '0.7rem', color: '#FFF' }}>{producer.industryTenure} Tenure</span>
-                              </div>
-                            </div>
-
-                            {/* Column 2: Carrier Fit (40%) */}
-                            <div style={{ flex: '0 0 40%', display: 'flex', flexDirection: 'column', gap: '0.5rem', borderLeft: '1px solid rgba(255,255,255,0.1)', borderRight: '1px solid rgba(255,255,255,0.1)', padding: '0 1.5rem' }}>
-                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', letterSpacing: '0.5px' }}>CARRIER PROFILE</span>
-                                <span style={{ fontSize: '0.7rem', fontWeight: 'bold', color: producer.fitColor }}>{producer.fitScore}</span>
-                              </div>
-                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.3rem' }}>
-                                {producer.producer_carrier_appointments?.slice(0, 4).map((appt, i) => (
-                                  <span key={i} className="carrier-pill">{appt.carrier?.carrier_name || 'Unknown'}</span>
-                                ))}
-                                {producer.producer_carrier_appointments?.length > 4 && (
-                                  <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', alignSelf: 'center' }}>+{producer.producer_carrier_appointments.length - 4} more</span>
-                                )}
-                                {(!producer.producer_carrier_appointments || producer.producer_carrier_appointments.length === 0) && (
-                                  <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>No Carrier Data</span>
-                                )}
-                              </div>
-                              <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', marginTop: 'auto' }}>
-                                {producer.totalProdCarriers > 0 ? `${producer.overlapCount} / ${producer.totalProdCarriers} Markets Overlap with your Agency` : 'Specialty: ' + (producer.specialty || producer.lob || 'General')}
-                              </div>
-                            </div>
-
-                            {/* Column 3: Value & Risk (25%) */}
-                            <div style={{ flex: '0 0 25%', display: 'flex', flexDirection: 'column', gap: '0.8rem', alignItems: 'flex-end' }}>
-                              <div style={{ textAlign: 'right' }}>
-                                <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', letterSpacing: '0.5px', marginBottom: '0.2rem' }}>EST. REVENUE / PREMIUM</div>
-                                <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.5rem', justifyContent: 'flex-end' }}>
-                                  <span style={{ fontSize: '1.2rem', fontWeight: 'bold', color: 'var(--accent-green)', fontFamily: 'var(--font-mono)' }}>{producer.estRevenue}</span>
-                                  <span style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.4)', fontFamily: 'var(--font-mono)' }}>/ {producer.estimated_premium || 'Unknown'}</span>
-                                </div>
-                              </div>
-                              <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.2rem' }}>
-                                <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', letterSpacing: '0.5px' }}>FLIGHT RISK</span>
-                                <span style={{ fontSize: '0.85rem', fontWeight: 'bold', color: producer.flightRiskColor, textShadow: producer.flightRisk !== 'Low' ? `0 0 10px ${producer.flightRiskColor}` : 'none' }}>{producer.flightRisk.toUpperCase()}</span>
-                              </div>
-                            </div>
-
-                          </div>
-
-                          {/* Always-Visible Playbook / Action Bar */}
-                          <div style={{ background: 'rgba(0,0,0,0.2)', borderTop: '1px solid rgba(255,255,255,0.05)', padding: '1rem 1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <div style={{ flex: 1 }}>
-                              {producer.triggerPlay ? (
-                                <div style={{ display: 'flex', gap: '2rem' }}>
-                                  <div style={{ flex: 1 }}>
-                                    <span style={{ fontSize: '0.65rem', color: 'var(--accent-red)', fontFamily: 'var(--font-mono)', fontWeight: 'bold', display: 'block', marginBottom: '0.3rem' }}>THE FACT</span>
-                                    <span style={{ fontSize: '0.8rem', color: '#FFF' }}>{producer.triggerPlay.fact}</span>
-                                  </div>
-                                  <div style={{ flex: 1, borderLeft: '1px solid rgba(255,255,255,0.1)', paddingLeft: '2rem' }}>
-                                    <span style={{ fontSize: '0.65rem', color: 'var(--accent-blue)', fontFamily: 'var(--font-mono)', fontWeight: 'bold', display: 'block', marginBottom: '0.3rem' }}>THE PLAY</span>
-                                    <span style={{ fontSize: '0.8rem', color: '#FFF' }}>{producer.triggerPlay.play}</span>
-                                  </div>
-                                </div>
-                              ) : (
-                                <div>
-                                  <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', fontWeight: 'bold', display: 'block', marginBottom: '0.3rem' }}>STANDARD OUTREACH</span>
-                                  <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>No immediate vulnerability detected. Lead with culture, commission splits, and superior market access.</span>
                                 </div>
                               )}
                             </div>
 
-                            {/* Actions & Outreach Vectors */}
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginLeft: '1.5rem' }}>
-                                {/* Outreach Vectors */}
-                                <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                                  <span style={{ fontSize: '0.6rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', marginRight: '0.5rem' }}>OUTREACH</span>
-                                  <a
-                                    href={producer.linkedin_url || `https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent((producer.first_name || '') + ' ' + (producer.last_name || '') + ' ' + (producer.current_agency?.agency_name || ''))}`}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    onClick={e => e.stopPropagation()}
-                                    style={{
-                                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                      width: '32px', height: '32px', borderRadius: '50%',
-                                      background: 'rgba(10, 102, 194, 0.2)', border: '1px solid rgba(10, 102, 194, 0.5)',
-                                      color: '#0A66C2', textDecoration: 'none', transition: 'all 0.2s', cursor: 'pointer',
-                                      fontWeight: 'bold', fontFamily: 'var(--font-mono)'
-                                    }}
-                                    title={producer.linkedin_url ? "Verified LinkedIn Profile" : "Search LinkedIn (Fallback)"}
-                                  >
-                                    in
-                                  </a>
-                                  <button
-                                    onClick={e => { e.stopPropagation(); alert('Email Enrichment API (e.g. Apollo/Lusha) required for direct email resolution.'); }}
-                                    style={{
-                                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                      width: '32px', height: '32px', borderRadius: '50%',
-                                      background: 'rgba(255, 255, 255, 0.05)', border: '1px solid rgba(255, 255, 255, 0.2)',
-                                      color: '#FFF', transition: 'all 0.2s', cursor: 'pointer',
-                                      fontWeight: 'bold', fontFamily: 'var(--font-mono)'
-                                    }}
-                                    title="Find Email (Integration Required)"
-                                  >
-                                    @
-                                  </button>
-                                </div>
-                                
-                                <div style={{ width: '1px', height: '32px', background: 'rgba(255,255,255,0.1)' }}></div>
-
-                                <button
-                                  onClick={(e) => { e.stopPropagation(); handleTrackProducer(producer); }}
-                                  style={{
-                                    background: isTracked ? 'rgba(255,255,255,0.05)' : 'var(--accent-blue)',
-                                    border: isTracked ? '1px solid rgba(255,255,255,0.1)' : 'none',
-                                    color: isTracked ? 'var(--text-muted)' : '#FFF',
-                                    padding: '0.5rem 1rem',
-                                    borderRadius: '4px',
-                                    fontSize: '0.7rem',
-                                    cursor: 'pointer',
-                                    fontFamily: 'var(--font-mono)',
-                                    fontWeight: 'bold'
-                                  }}
-                                >
-                                  {isTracked ? '- UNTRACK TARGET' : '+ TRACK TARGET'}
-                                </button>
+                            <div style={{ flex: '0 0 40%', display: 'flex', flexDirection: 'column', gap: '0.3rem', borderLeft: '1px solid rgba(255,255,255,0.05)', borderRight: '1px solid rgba(255,255,255,0.05)', padding: '0 1rem' }}>
+                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', alignItems: 'center' }}>
+                                {ag.triggers.length > 0 ? ag.triggers.map((t, i) => (
+                                  <span key={i} style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', padding: '0.15rem 0.4rem', borderRadius: '3px', fontSize: '0.6rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
+                                    <span style={{ color: ag.distressColor, marginRight: '4px', fontSize: '0.7rem' }}>•</span>{t}
+                                  </span>
+                                )) : (
+                                  <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>Stable / No recent attrition</span>
+                                )}
+                              </div>
                             </div>
+
+                            <div style={{ flex: '0 0 35%', display: 'flex', flexDirection: 'column', gap: '0.4rem', paddingLeft: '1.5rem' }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.1rem' }}>
+                                  <span style={{ fontSize: '0.6rem', color: 'var(--text-muted)', letterSpacing: '0.5px' }}>DISTRESS</span>
+                                  <span style={{ fontSize: '0.75rem', fontWeight: 'bold', color: ag.distressColor }}>{ag.distressLevel.toUpperCase()}</span>
+                                </div>
+                                <div style={{ textAlign: 'right' }}>
+                                  <div style={{ fontSize: '0.6rem', color: 'var(--text-muted)', letterSpacing: '0.5px', marginBottom: '0.1rem' }}>EST. BOOK VALUE</div>
+                                  <span style={{ fontSize: '1rem', fontWeight: 'bold', color: 'var(--accent-green)', fontFamily: 'var(--font-mono)' }}>
+                                    {formatter.format(ag.probableValLow)} — {formatter.format(ag.probableValHigh)}
+                                  </span>
+                                  <div style={{ fontSize: '0.6rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>
+                                    Based on {ag.adjustedMultiple.toFixed(2)}x - {(ag.adjustedMultiple + 0.35).toFixed(2)}x multiple
+                                  </div>
+                                </div>
+                              </div>
+                              <div style={{ background: 'rgba(255,255,255,0.03)', padding: '0.4rem', borderRadius: '4px', borderLeft: '2px solid var(--accent-blue)', marginTop: '0.2rem' }}>
+                                <span style={{ fontSize: '0.65rem', color: '#FFF', display: 'block', lineHeight: '1.4' }}>
+                                  ⚡ <strong style={{ color: 'var(--accent-blue)' }}>Buyer Value Premium:</strong> Intrinsic value is <strong style={{ color: 'var(--accent-green)' }}>{formatter.format(ag.strategicValue)}+</strong> if integrated with standard markets.
+                                </span>
+                              </div>
+                            </div>
+
                           </div>
                         </div>
                       )
                     })}
                   </div>
-                  {augmentedProducers.length === 0 && !isSearchingProducers && (
-                    <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>
-                      No high-value targets found matching the current filters.
-                    </div>
-                  )}
                 </div>
               );
             })()}
