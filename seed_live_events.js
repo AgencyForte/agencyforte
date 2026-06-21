@@ -50,8 +50,8 @@ async function runDiff() {
 
   // Clear old orphaned events
   console.log('Clearing old mock events...');
-  await supabase.from('producer_movements').delete().neq('id', 'dummy');
-  await supabase.from('agency_carrier_appointments').delete().neq('id', 'dummy');
+  await supabase.from('producer_movements').delete().not('id', 'is', null);
+  await supabase.from('agency_carrier_appointments').delete().not('id', 'is', null);
 
   // Memory State
   const day1Producers = new Map(); // AgencyNPN -> Set<ProducerNPN>
@@ -291,7 +291,7 @@ async function runDiff() {
   
   console.log(`Inserting ${carrierEvents.length} Carrier Events...`);
   for (let i = 0; i < carrierEvents.length; i += 500) {
-    await supabase.from('carrier_events').delete().neq('id', 'dummy');
+    await supabase.from('carrier_events').delete().not('id', 'is', null);
     await supabase.from('carrier_events').insert(carrierEvents.slice(i, i + 500));
   }
 

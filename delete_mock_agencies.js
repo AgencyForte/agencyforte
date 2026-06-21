@@ -20,7 +20,7 @@ async function deleteMocks() {
   const mockProdIds = mockProducers ? mockProducers.map(p => p.id) : [];
 
   // 2. Delete dependencies
-  await supabase.from('producer_carrier_appointments').delete().neq('id', 'dummy'); // Wipe all mock producer carrier appts
+  await supabase.from('producer_carrier_appointments').delete().not('id', 'is', null); // Wipe all mock producer carrier appts
   if (mockIds.length > 0) {
     await supabase.from('producer_movements').delete().in('from_agency_id', mockIds); 
     await supabase.from('producer_movements').delete().in('to_agency_id', mockIds); 

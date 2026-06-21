@@ -9,7 +9,7 @@ async function flagICPs() {
   
   // 1. Reset all existing ICP flags to false first
   console.log("Resetting all existing ICP flags...");
-  await supabase.from('agencies').update({ is_icp: false }).neq('id', 'dummy'); // dummy condition to update all
+  await supabase.from('agencies').update({ is_icp: false }).not('id', 'is', null); // dummy condition to update all
 
   // 2. Query agencies that match our base criteria
   console.log("Fetching agencies matching Scale & Geography...");

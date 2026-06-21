@@ -45,12 +45,12 @@ async function seedMatrix() {
 
   // 2. Clear old data
   console.log('Clearing old mock data...');
-  await supabase.from('competitor_relationships').delete().neq('id', 'dummy');
-  await supabase.from('producer_movements').delete().neq('id', 'dummy');
-  await supabase.from('carrier_events').delete().neq('id', 'dummy');
-  await supabase.from('agency_carrier_appointments').delete().neq('id', 'dummy');
-  await supabase.from('agencies').delete().neq('id', 'dummy');
-  await supabase.from('locations').delete().neq('id', 'dummy');
+  await supabase.from('competitor_relationships').delete().not('id', 'is', null);
+  await supabase.from('producer_movements').delete().not('id', 'is', null);
+  await supabase.from('carrier_events').delete().not('id', 'is', null);
+  await supabase.from('agency_carrier_appointments').delete().not('id', 'is', null);
+  await supabase.from('agencies').delete().not('id', 'is', null);
+  await supabase.from('locations').delete().not('id', 'is', null);
 
   // 3. Insert Locations (One per unique city)
   console.log(`Inserting ${uniqueCities.size} unique locations...`);

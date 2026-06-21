@@ -8,7 +8,7 @@ async function runICPFlagging() {
   console.log("--- PHASE 1: Executing the Official ICP Database Sweep ---");
 
   // 1. Reset existing ICPs
-  await supabase.from('agencies').update({ is_icp: false }).neq('id', 'dummy');
+  await supabase.from('agencies').update({ is_icp: false }).not('id', 'is', null);
 
   // 2. Query based on the 5-Pillar Model using the exact schema
   const { data: icpTargets, error } = await supabase
