@@ -1430,9 +1430,27 @@ export default function Dashboard() {
                                             onClick={() => setExpandedEvent(prev => ({ ...prev, [agencyName]: prev[agencyName] === idx ? null : idx }))}
                                             style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
                                           >
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.8rem' }}>
-                                              <span className={`badge badge-${item.type}`}>{item.badge.toUpperCase()}</span>
-                                              <span className="ticker-subject">{item.subject}</span>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                              <span style={{ 
+                                                background: 'rgba(255,255,255,0.03)', 
+                                                border: '1px solid rgba(255,255,255,0.08)', 
+                                                padding: '0.15rem 0.4rem', 
+                                                borderRadius: '3px', 
+                                                fontSize: '0.65rem', 
+                                                color: '#FFF', 
+                                                fontFamily: 'var(--font-mono)',
+                                                display: 'inline-flex',
+                                                alignItems: 'center',
+                                                gap: '0.4rem'
+                                              }}>
+                                                <span style={{ 
+                                                  color: item.type === 'loss' ? 'var(--accent-red)' : 
+                                                         item.type === 'appt' ? 'var(--accent-blue)' : 
+                                                         item.type === 'hire' ? 'var(--accent-green)' : 
+                                                         item.type === 'exit' ? '#F59E0B' : 'var(--text-muted)'
+                                                }}>[{item.badge.toUpperCase()}]</span>
+                                                <span>{item.subject}</span>
+                                              </span>
                                             </div>
                                             {item.role && (
                                               <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', letterSpacing: '0.5px' }}>
