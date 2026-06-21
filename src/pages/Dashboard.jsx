@@ -1422,7 +1422,8 @@ export default function Dashboard() {
                                     {feed.length === 0 ? (
                                       <span style={{ color: 'var(--text-muted)' }}>No recent activity detected in the last 30 days.</span>
                                     ) : (
-                                      feed.map((item, idx) => (
+                                      <>
+                                        {feed.slice(0, 8).map((item, idx) => (
                                         <div key={idx} style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
                                           <div
                                             className={`ticker-event ${expandedEvent[agencyName] === idx ? 'active' : ''}`}
@@ -1482,7 +1483,13 @@ export default function Dashboard() {
                                             </div>
                                           )}
                                         </div>
-                                      ))
+                                      ))}
+                                      {feed.length > 8 && (
+                                        <div style={{ textAlign: 'center', padding: '0.6rem', fontSize: '0.65rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', fontStyle: 'italic', background: 'rgba(255,255,255,0.02)', borderRadius: '4px', marginTop: '0.5rem', border: '1px dashed rgba(255,255,255,0.1)' }}>
+                                          + {feed.length - 8} additional events hidden to conserve space
+                                        </div>
+                                      )}
+                                      </>
                                     )}
                                   </div>
                                 </div>
